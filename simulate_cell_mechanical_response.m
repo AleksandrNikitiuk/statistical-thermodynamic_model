@@ -1,0 +1,747 @@
+% 1 кривая
+% coefficients_initial_values = [...
+%    76.680825350680150 ... % 10000
+%    0.007264210118532... % .007 .009
+%    3.063777385989794e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+% 2 кривая
+% coefficients_initial_values = [...
+%    3.024640116952170e+03 ... % 10000
+%    0.007565961718737... % .007 .009
+%    3.433595605189917e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+% 3 кривая
+% coefficients_initial_values = [...
+%    1.279783524425185e+04 ... % 10000
+%    0.007638896225358... % .007 .009
+%    3.581293005310554e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+% 4 кривая
+% coefficients_initial_values = [...
+%    9.006799440827235e+03 ... % 10000
+%    0.009208704807771... % .007 .009
+%    1.028898371987660e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+% 5 кривая
+% coefficients_initial_values = [...
+%    1.282629046103740e+04 ... % 10000
+%    0.009000514177902... % .007 .009
+%    1.502099784386257e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+% 6 кривая
+% coefficients_initial_values = [...
+%    1.342434174276610e+04 ... % 10000
+%    0.009401055304651... % .007 .009
+%    3.635285673204571e+02]; % 300 1000
+% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
+
+%     time_step = .0013;
+%     time = time_step:time_step:10;
+%     
+%     eta_0 = .01;
+%     d_eta_0 = .9;
+%     
+%     dzeta = .001; % .01 .009 .007 .005
+%     
+%     eps_start = eta_0 * dzeta;
+%     eps_end = .1;
+%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+%     eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+%     
+%     L_tau = [1]; % 0 5000 10000
+%     line_style = {'-','--',':'};
+%     
+%     for i = 1:length(L_tau)
+%       [eta,sigma] = get_force_curve(time,eps,L_tau(i),dzeta,120);
+%     
+%       figure(1);hold on
+%       plot(time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%       
+% %       figure(2);hold on
+% %       plot(time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
+% %       xlabel('t');
+% %       ylabel('\eta');
+% %       set_figure;
+% %       
+% %       figure(3);hold on
+% %       plot(log(time(2:floor(1*end/10))),log(sigma(2:floor(1*end/10))),'k','LineWidth',2,'LineStyle',line_style{i})
+% %       xlabel('t');
+% %       ylabel('\sigma');
+% %       set_figure;
+% %       
+% %       figure(4);hold on
+% %       plot(log(time((floor(1*end/10)+1):end)),log(sigma((floor(1*end/10)+1):end)),'k','LineWidth',2,'LineStyle',line_style{i})
+% %       xlabel('t');
+% %       ylabel('\sigma');
+% %       set_figure;
+%     end
+% %     for i = 1:4
+% %       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
+% %     end
+
+
+%%
+function [L_tau, dzeta, G] = identificate_parameters(coefficients_initial_values)
+% Функция для идентификации параметров модели L_tau и dzeta.
+%     Пример использования:
+
+
+% проверка входных данных
+if sum(size(coefficients_initial_values)) ~= 4
+  coefficients_initial_values = [...
+    10000 ...
+    .009...
+    1000];
+end
+
+% оптимизация методом Нелдера-Мида
+options = optimset('Display','iter','PlotFcns',@optimplotfval);
+fun = @get_difference_sigma_and_F;
+
+[coefficients,fval,exitflag,output] = fminsearch(fun,coefficients_initial_values,options)
+
+% выходные данные
+L_tau = coefficients(1);
+dzeta = coefficients(2);
+G = coefficients(3);
+end
+
+function [difference_sigma_and_F] = get_difference_sigma_and_F(coefficients)
+% Функция для расчета разницы между силовыми кривыми стат. модели и модели КФ.
+
+% загрузка результатов симуляции КФ-модели
+time_step = .0013;
+time = time_step:time_step:10;
+[force_curves] = readmatrix('data.txt')';
+
+% симуляция на основе мезоскопической модели
+eta_0 = .01;
+d_eta_0 = .9;
+    
+L_tau = coefficients(1);
+dzeta = coefficients(2);
+G = coefficients(3);
+
+eps_start = eta_0 * dzeta;
+eps_end = .1;
+eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+    
+[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0);
+
+% диапазон оптимизации
+optimization_span = time > 0 & time < 10.1;
+n_force_curve = 6;
+
+% сравнение результатов 2 моделей(при оптимизации д.б. закомментировано)
+% figure(n_force_curve);
+% plot(time,force_curves(n_force_curve,:),'k-',...
+%   time,sigma,'k--');
+% close figure(2);
+
+% расчет целевой функции, по которой происходит оптимизация
+difference_sigma_and_F = max(abs(sigma(optimization_span) - force_curves(n_force_curve,optimization_span)));
+end
+
+function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta)
+% Функция для расчета силовой кривой (моделирование экспериметнта на АСМ).
+%     Пример использования:
+%     time_step = .0013;
+%     time = time_step:time_step:10;
+%     
+%     eta_0 = .01;
+%     d_eta_0 = .9;
+%     
+%     dzeta = .009; % .01 .009 .007 .005
+%     
+%     eps_start = eta_0 * dzeta;
+%     eps_end = .1;
+%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+%     eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+%     
+%     L_tau = [0 5000 10000]; % 0 5000 10000
+%     line_style = {'-','--',':'};
+%     
+%     for i = 1:length(L_tau)
+%       [eta,sigma] = get_force_curve(time,eps,L_tau(i));
+%     
+%       figure(1);hold on
+%       plot(time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%       
+%       figure(2);hold on
+%       plot(time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\eta');
+%       set_figure;
+%       
+%       figure(3);hold on
+%       plot(log(time(2:floor(1*end/10))),log(sigma(2:floor(1*end/10))),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%       
+%       figure(4);hold on
+%       plot(log(time((floor(1*end/10)+1):end)),log(sigma((floor(1*end/10)+1):end)),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%     end
+%     for i = 1:4
+%       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
+%     end
+
+if nargin < 9
+  L_eta = 1;
+end
+
+if nargin < 7
+  eta_0 = .01;
+  d_eta_0 = .9;
+end
+
+if nargin < 5
+  G = 1000;
+end
+
+if nargin < 4
+  dzeta = .009; % .01 .009 .007 .005
+end
+
+if nargin < 3
+  L_tau = [10000]; % 0 1000 10000
+end
+
+if nargin < 2
+  eps_start = eta_0 * dzeta;
+  eps_end = .1;
+  eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+  eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+end
+
+if nargin < 1
+  time_step = .0013;
+  time = time_step:time_step:10;
+end
+
+initial_conditions = [eta_0; d_eta_0];
+
+deps_dt = gradient(eps) / (time(2) - time(1));
+
+[~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,deps_dt,G,dzeta,L_tau,L_eta),time,initial_conditions);
+sigma = G * (eps - dzeta * eta(:,1)');  
+
+end
+
+function [rhs_expr] = get_rhs_expr(t,varibles,eps,G,dzeta,L_tau,L_eta,theta)
+% Функция для расчета правой части дифференциального уравнения
+%     Пример использования:
+%     time_step = .013;
+%     time = time_step:time_step:10;
+%     
+%     eta_0 = .01;
+%     d_eta_0 = .1;
+%     initial_conditions = [eta_0; d_eta_0];
+%     
+%     G = 100.;
+%     dzeta = .03;
+%     L_eta = 1;
+%     L_tau = 100;
+%     
+%     eps_start = eta_0 * dzeta;
+%     eps_end = .1;
+%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+%     deps_dt = gradient(eps) / time_step;
+% 
+%     theta = [.2 .23 .3];
+%     line_style = {'-','--',':'};
+%     
+%     for i = 1:length(theta)
+%       [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,deps_dt,G,dzeta,L_tau,L_eta,theta(i)),time,initial_conditions);
+%       sigma = G * (eps - dzeta * eta(:,1)');
+%       
+%       figure(1);hold on
+%       plot(eps,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel(['{\it' char(949) '}']);
+%       ylabel('\sigma');
+%       set_figure;
+%       
+%       figure(2);hold on
+%       plot(eps,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel(['{\it' char(949) '}']);
+%       ylabel('\eta');
+%       set_figure;
+%     end
+%     for i = 1:2
+%       figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
+%     end
+
+if nargin < 8
+  theta = .2;
+end
+
+if nargin < 7
+  L_eta = 1.;
+end
+
+if nargin < 6
+  L_tau = 3.0;
+end
+
+rhs_expr = zeros(size(varibles));
+
+rhs_expr(1) = varibles(2);
+rhs_expr(2) = L_eta * (...
+  dzeta * ( G * (eps(ceil(t)) - dzeta * varibles(2)) - L_tau * dzeta * varibles(2) )...
+  + varibles(2)...
+  - theta * varibles(2) * (1.4 / (1 - varibles(1)).^2)...
+  + 2/3 * G * (eps(ceil(t)) - dzeta * varibles(2))...
+  );
+
+end
+
+function [dF_deta_uniaxial_ordering] = get_dF_deta_uniaxial_ordering(eta, theta, Sigma)
+% Функция для расчета частной производной свободной энергии по eta
+% (случай аппроксимации натурального логарифма интеграла в виде a*exp(b*x) + c*exp(d*x)).
+%     Пример использования:
+%     theta = .2;
+%     Sigma = -.15; % .2 .15 -.15
+%     eta = -.5:.01:1;
+%     
+%     [dF_deta_uniaxial_ordering] = get_dF_deta_uniaxial_ordering(eta, theta, Sigma);
+%     
+%     figure(1);hold on;
+%     plot(eta,dF_deta_uniaxial_ordering,'k');
+%     xlabel('\eta');
+%     ylabel('dF/d\eta');
+% %     hold off;
+
+
+etas = -.5:.01:1;
+xis = 9 / (4 * theta) * (etas + 2/3 * Sigma);
+[~,~,fitmodel] = get_R_approximations(xis);
+
+a = fitmodel.a;
+b = fitmodel.b;
+c = fitmodel.c;
+d = fitmodel.d;
+
+dF_deta_uniaxial_ordering = 3/2 * eta + 3/4 - theta...
+  * (...
+    (9 * a * (b - d) * exp(9 * b * (eta+(2 * Sigma) / 3) / (4 * theta)))...
+    ./ (4 * theta * (a * exp(9 * b * (eta+(2 * Sigma) / 3) / (4 * theta)) ...
+        + c * exp(9 * d * (eta+(2 * Sigma) / 3) / (4 * theta))))...
+    + (9 * d) / (4 * theta)...
+    );
+
+end        
+
+function [fitobj] = get_xi_approximation(xis)
+% Функция для расчета вида аппроксимации обратной функции xi.
+% General model:
+%      fitobj(x) = (  a1 * x^4 + b1 * x^3 + c1 * x^2 + d1 * x^1 + e1 ) / ( a2 * 
+%                     x^5 + b2 * x^4 + c2 * x^3 + d2 * x^2 + e2 * x^1 + f2 )
+%      Coefficients (with 95% confidence bounds):
+%        a1 =     -0.0115  (-1.589, 1.566)
+%        a2 =   0.0001344  (-0.1453, 0.1456)
+%        b1 =     -0.0169  (-3.171, 3.137)
+%        b2 =    0.002377  (-0.2986, 0.3034)
+%        c1 =     0.02019  (-1.622, 1.662)
+%        c2 =   -0.003805  (-0.4592, 0.4516)
+%        d1 =     0.01832  (-2.446, 2.483)
+%        d2 =   -0.005388  (-0.9529, 0.9421)
+%        e1 =  -0.0001432  (-0.01897, 0.01868)
+%        e2 =    0.003987  (-0.3399, 0.3479)
+%        f2 =    0.002682  (-0.3559, 0.3613)
+
+if nargin < 1
+  xis = -100:.13:100; % -4:.13:12
+end
+
+syms xi x;
+
+R_fun = exp(xi .* x.^2);
+R_fun_der = (x.^2) .* exp(xi .* x.^2);
+
+int_R_fun = int(R_fun,x,[0 1]);
+int_R_fun = (pi^(1/2)*erfi((xi)^(1/2)))/(2*(xi)^(1/2));
+int_R_fun_der = int(R_fun_der,x,[0 1]);
+
+eta_fun = matlabFunction(3/2 * (int_R_fun_der/int_R_fun - 1/3));
+
+eta = eta_fun(xis);
+
+% fitobj = fit(eta', xis',...
+%   '(  a1 * x^4 + b1 * x^3 + c1 * x^2 + d1 * x^1 + e1 ) / ( a2 * x^5 + b2 * x^4 + c2 * x^3 + d2 * x^2 + e2 * x^1 + f2 )',...
+%   'StartPoint',[-0.0115 0.0001344 -0.0169 0.002377 0.02019 -0.003805 0.01832 -0.005388 -0.0001432 0.003987  0.002682]);
+fitobj = fit(eta', xis',...
+  '(  d1 * x^1 + e1 ) / ( d2 * x^2 + e2 * x^1 + f2 )')
+end
+
+function [R_approximation,R,fitmodel] = get_R_approximations(xi)
+% Функция для расчета аппроксимации R(xi).
+%     Пример использования:
+%     xi = -5:.06:5;
+% 
+%     [R_approximation,R] = get_R_approximations(xi);
+% 
+%     figure(1);hold on;
+%     plot(xi, R,'k');
+%     plot(xi, R_approximation,'r');
+%     xlabel('\xi')
+%     ylabel('R');
+%     hold off;
+
+
+R = (sqrt(pi) * erfi(sqrt(xi))) ./ (2 * sqrt(xi));
+R = R(~isnan(R));
+xi = xi(~isnan(R));
+R = R(~isinf(R));
+xi = xi(~isinf(R));
+
+
+fitmodel = fit(xi', R','exp2','Lower',[0,0],'Upper',[3,3],'StartPoint',[.1 .1 .1 .1]); % a*exp(b*x) + c*exp(d*x))
+% fitmodel = fit(xi', R', '1 / ( d1 * x^2 + e1 * x^1 + f1 ) + 1 / ( d2 * x^2 + e2 * x^1 + f2 )');
+R_approximation = feval(fitmodel,xi);
+
+end
+
+function [R_form] = get_R_form(xi,x)
+% Функция для получения вида R(xi).
+% В Wolfram Mathematica R(xi) = (sqrt(pi) * erfi(sqrt(xi))) ./ (2 * sqrt(xi))
+
+if nargin < 2
+  syms xi x;
+end
+
+R_fun = exp(xi .* x.^2);
+R_form = matlabFunction(int(R_fun,x,[0 1]));
+
+end
+
+function [free_energy_derivative] = get_free_energy_approximation_derivative(eta,sigma,T,lambda,gamma)
+% Функция для расчета производной по eta аппроксимации свободной энергии.
+
+if nargin < 5
+  lambda = 1;
+  gamma = 1;
+end
+
+if nargin < 3
+  T = .2;
+end
+
+if nargin < 2
+  sigma = .2; % -.15 .15 .2
+end
+
+if nargin < 1
+  eta = -.5:.01:1;
+end
+
+% a1 =    1.824e+08; % -0.0115
+% a2 =    -4.19e+07; % 0.0001344
+% b1 =   -1.252e+08; % -0.0169
+% b2 =     6.07e+07; % 0.002377
+% c1 =   -1.115e+08; % 0.02019
+% c2 =    3.019e+07; % -0.003805
+% d1 =    7.913e+06; % 0.01832
+% d2 =   -3.875e+07; % -0.005388
+% e1 =    1.041e+06; % -0.0001432
+% e2 =   -1.237e+07; % 0.003987
+% f2 =     2.17e+06; % 0.002682
+% P = ( a1 * eta.^4 + b1 * eta.^3 + c1 * eta.^2 + d1 * eta.^1 + e1 );
+% M = ( a2 * eta.^5 + b2 * eta.^4 + c2 * eta.^3 + d2 * eta.^2 + e2 * eta.^1 + f2 );
+% xi_approximation_derivative = P ./ M;
+
+% xi_approximation_derivative =...
+%   1.25 ./ (1 - eta)...
+%   + 9 ./ (2 - eta)...
+%   - .5 ./ (.5 + eta)...
+%   - 1. ./ (1.1 + eta)...
+%   - 73.73 ./ (19.1 + eta)...
+%   ;
+
+% xi_approximation_derivative =...
+%   (2.576e+06 * eta + 7.964e+04) ./ ( -1.34e+06 * eta.^2 + 6.695e+05 * eta + 6.661e+05 );
+
+xi_approximation_derivative = 1.40034 ./ (0.997369 - 1. * eta);
+
+free_energy_derivative = ...
+  - eta ...
+  + (4 * T) / (9 * lambda) * xi_approximation_derivative...
+  - (2 * gamma * sigma) / (3 * lambda)...
+  ;
+
+end
+
+function [free_energy_uniaxial_ordering] = get_free_energy_approximation(eta,sigma,T,lambda,gamma)
+% Функция для расчета аппроксимации свободной энергии.
+%     Пример использования:
+%     eta = -.5:.013:1;
+%     free_energy = get_free_energy_approximation(eta);
+%     
+%     figure(1);hold on;
+%     plot(eta,free_energy);
+%     xlabel('\eta');
+%     ylabel('F^o');
+%     hold off;
+
+if nargin < 5
+  lambda = 1;
+  gamma = 1;
+end
+
+if nargin < 3
+  T = .2;
+end
+
+if nargin < 2
+  sigma = .2; % -.15 .15 .2
+end
+
+if nargin < 1
+  eta = -.5:.013:1;
+end
+
+% xi_approximation =...
+%   - 1.25 * log(1 - eta)...
+%   - 9 * log(2 - eta)...
+%   - .5 * log(.5 + eta)...
+%   - log(1.1 + eta)...
+%   - 73.73 * log(19.1 + eta);
+xi_approximation =...
+  -1.40034 * log(0.997369 - 1. * eta); % - 0.267037 * log(0.498328 + 1. * eta)
+
+free_energy_uniaxial_ordering = ...
+  - .5 * eta.^2 ...
+  + (4 * T) / (9 * lambda) * xi_approximation...
+  - (2 * gamma * sigma) / (3 * lambda) * eta...
+  + 19.8085; % + 19.8085
+
+end
+
+function [free_energy_uniaxial_ordering] = get_free_energy_uniaxial_ordering(eta, theta, Sigma)
+% Функция для расчета свободной энергии одноосного упорядочения полимеров.
+%     Пример использования:
+%     theta = .2;
+%     Sigma = .15; % .2 .15 -.15
+%     eta = -.5:.01:1;
+% 
+%     [free_energy_uniaxial_ordering] = get_free_energy_uniaxial_ordering(eta, theta, Sigma);
+% 
+%     figure(1);hold on;
+%     plot(eta, free_energy_uniaxial_ordering, 'k');
+%     xlabel('\eta');
+%     ylabel('F/n\lambda');
+%     % hold off;
+
+xis = 9 / (4 * theta) * (eta + 2/3 * Sigma);
+
+% Решение с интегралом
+R_fun = @(x,xi) exp(xi .* x.^2);
+R = zeros(size(eta));
+i = 1;
+for xi = xis
+  R(i) = integral(@(x) R_fun(x,xi),0,1);
+  i = i + 1;
+end
+
+free_energy_uniaxial_ordering = 3/4 * eta .* (eta + 1)...
+  + 1/2 * Sigma - theta * log(R);
+
+% Решение с взятым интегралом и его аппроксимацией
+% [R_app, R] = get_R_approximations(xis);
+% free_energy_uniaxial_ordering = 3/4 * eta .* (eta + 1)...
+%   + 1/2 * Sigma - theta * log(R); % R R_app'
+
+end
+
+function [Sigma, eta] = get_eta_Sigma(T, sigmas)
+% Функция для расчета зависимости eta(Sigma).
+%     Пример использования:
+%     sigmas = -.1:.01:.2;
+%     T = 0.3; % .3 .32 .346 .4
+% 
+%     [Sigma, eta] = get_eta_Sigma(T, sigmas);
+% 
+%     figure(1);hold on;
+%     plot(Sigma, eta, 'k.');
+%     xlabel('\Pi');
+%     ylabel('\eta');
+%     hold off;
+
+if nargin < 2
+  sigmas = -.2:.01:.2;
+end
+
+if nargin < 1
+  T = 0.03;
+end
+
+xis = -10:.1:10;
+
+i = 1;
+eta = [];
+Sigma = [];
+for s = sigmas
+
+  [eta_curve, eta_line] = get_eta(xis,s,T);
+
+  points = find(sign((eta_curve - eta_line')) ~= sign(circshift(eta_curve - eta_line',1)));
+  points = points(2:end);
+  
+  for j = 1:length(points)
+    eta(i) = eta_curve(points(j));
+    Sigma(i) = s;
+    i = i + 1;
+  end
+end
+
+end
+
+function [theta, eta] = get_eta_theta(sigma, Ts)
+% Функция для расчета зависимости eta(T).
+%     Пример использования:
+%     sigma = .0; % 0 .01 .02 .2 -.02 -.2
+%     Ts = 0.01:.01:.4;
+% 
+%     [theta, eta] = get_eta_theta(sigma, Ts);
+% 
+%     figure(1);hold on;
+%     plot(theta, eta, 'k.');
+%     xlabel('\Theta');
+%     ylabel('\eta');
+%     hold off;
+
+if nargin < 2
+  Ts = 0.03:.001:.08;
+end
+
+if nargin < 1
+  sigma = 0;
+end
+
+xis = -30:.5:30;
+
+i = 1;
+eta = 0;
+theta = 0;
+for T = Ts
+
+  [eta_curve, eta_line] = get_eta(xis,sigma,T);
+
+  points = find(sign((eta_curve - eta_line')) ~= sign(circshift(eta_curve - eta_line',1)));
+  points = points(2:end);
+  
+  for j = 1:length(points)
+    eta(i) = eta_curve(points(j));
+    theta(i) = T;
+    i = i + 1;
+  end
+end
+
+end
+
+function [eta_curve, eta_line] = get_eta(xis,sigma,T,lambda,gamma,R_fun,R_derivative_fun)
+% Функция для расчета зависимости eta(xi).
+%     Пример использования:
+%     T = .4; % .4 .26 .16
+%     sigma = .1; % .1 -.5 .5
+% 
+%     xis = -10:.1:20;
+% 
+%     [eta_curve, eta_line] = get_eta(xis,sigma,T);
+% 
+%     figure(1);hold on;
+%     plot(xis, eta_curve, 'k');
+%     plot(xis, eta_line, 'k');
+%     ylim([min(eta_curve) max(eta_curve)]);
+%     xlabel('\xi');
+%     ylabel('\eta');
+%     hold off;
+%     set_figure;
+
+
+if nargin < 7
+  R_fun = @(x,xi) exp(xi .* x.^2);
+  R_derivative_fun = @(x,xi) (x.^2) .* exp(xi .* x.^2);
+end
+
+if nargin < 4
+  lambda = 1; % .1 eV   .68
+  gamma = 1; % 1e-23 sm^3
+end
+
+if nargin < 2
+  T = .07;
+  sigma = 0;
+end
+
+R = zeros(length(xis),1);
+R_derivative = zeros(size(R));
+i = 1;
+for xi = xis
+  R(i) = integral(@(x) R_fun(x,xi),0,1);
+  R_derivative(i) = integral(@(x) R_derivative_fun(x,xi),0,1);
+  i = i + 1;
+end
+
+eta_curve = 3/2 * (R_derivative ./ R - 1/3);
+eta_line = 4*T / (9*lambda) * xis - (2*gamma*sigma) / (3*lambda);
+
+end
+
+function set_figure
+% Функция для настройки внешнего вида графиков.
+
+% Font settings
+font = 'Times New Roman';
+fontSize = 14;
+fontWeight = 'normal';
+
+box on;
+
+% Labels
+%{
+xLabel = '№ гена';
+xlabel(xLabel);
+yLabel = 'Q''';
+ylabel(yLabel);
+%}
+
+% Axis and grid settings
+%{
+grid off;
+axis xy;
+axis tight;
+%}
+
+% Axis limits
+%{
+% xlim([0 600]);
+ylim([0.1 0.17]);
+%}
+
+%{
+colormap('jet');
+c = colorbar;
+c.Label.String = 'log_{10}(|A(u,v)|)';
+%}
+
+% Title
+% title('MCF-7 with BMK');
+
+set(gca,'FontName',font,'FontSize',fontSize,'FontWeight',fontWeight);
+end
+
