@@ -1,105 +1,158 @@
-% 1 кривая
-% coefficients_initial_values = [...
-%    76.680825350680150 ... % 10000
-%    0.007264210118532... % .007 .009
-%    3.063777385989794e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
 
-% 2 кривая
-% coefficients_initial_values = [...
-%    3.024640116952170e+03 ... % 10000
-%    0.007565961718737... % .007 .009
-%    3.433595605189917e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
-
-% 3 кривая
-% coefficients_initial_values = [...
-%    1.279783524425185e+04 ... % 10000
-%    0.007638896225358... % .007 .009
-%    3.581293005310554e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
-
-% 4 кривая
-% coefficients_initial_values = [...
-%    9.006799440827235e+03 ... % 10000
-%    0.009208704807771... % .007 .009
-%    1.028898371987660e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
-
-% 5 кривая
-% coefficients_initial_values = [...
-%    1.282629046103740e+04 ... % 10000
-%    0.009000514177902... % .007 .009
-%    1.502099784386257e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
-
-% 6 кривая
-% coefficients_initial_values = [...
-%    1.342434174276610e+04 ... % 10000
-%    0.009401055304651... % .007 .009
-%    3.635285673204571e+02]; % 300 1000
-% [L_tau, dzeta,G] = identificate_parameters(coefficients_initial_values);
-
-%     time_step = .0013;
-%     time = time_step:time_step:10;
-%     
-%     eta_0 = .01;
-%     d_eta_0 = .9;
-%     
-%     dzeta = .001; % .01 .009 .007 .005
-%     
-%     eps_start = eta_0 * dzeta;
-%     eps_end = .1;
-%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-%     eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
-%     
-%     L_tau = [1]; % 0 5000 10000
-%     line_style = {'-','--',':'};
-%     
-%     for i = 1:length(L_tau)
-%       [eta,sigma] = get_force_curve(time,eps,L_tau(i),dzeta,120);
-%     
-%       figure(1);hold on
-%       plot(time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('t');
-%       ylabel('\sigma');
-%       set_figure;
-%       
-% %       figure(2);hold on
-% %       plot(time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
-% %       xlabel('t');
-% %       ylabel('\eta');
-% %       set_figure;
-% %       
-% %       figure(3);hold on
-% %       plot(log(time(2:floor(1*end/10))),log(sigma(2:floor(1*end/10))),'k','LineWidth',2,'LineStyle',line_style{i})
-% %       xlabel('t');
-% %       ylabel('\sigma');
-% %       set_figure;
-% %       
-% %       figure(4);hold on
-% %       plot(log(time((floor(1*end/10)+1):end)),log(sigma((floor(1*end/10)+1):end)),'k','LineWidth',2,'LineStyle',line_style{i})
-% %       xlabel('t');
-% %       ylabel('\sigma');
-% %       set_figure;
-%     end
-% %     for i = 1:4
-% %       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
-% %     end
 
 
 %%
-function [L_tau, dzeta, G] = identificate_parameters(coefficients_initial_values)
-% Функция для идентификации параметров модели L_tau и dzeta.
-%     Пример использования:
+function visualize_double_pl_relaxation_of_cell
 
+time_step = .0013;
+time = time_step:time_step:10;
+[force_curves] = readmatrix('data.txt')';
+
+n_force_curve = 2;
+
+eta_0 = .01;
+d_eta_0 = 1.519968801891266;
+    
+L_tau = 7.526189514762888e+04;
+dzeta = 0.006464748801383;
+L_eta = 0.422867214093489;
+G = 1;
+n = 0.004447238153784;
+
+eps_start = eta_0 * dzeta;
+eps_end = .1;
+eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+    
+[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta);
+
+span_alpha = time > .01 & time < 1.;
+span_beta = time > 0.0013 & time < .01;
+span = time > .0013 & time < 1.;
+
+x = log(time(span_alpha));
+y = log(force_curves(n_force_curve,span_alpha));
+y_alpha_fitmodel = fit(x',y','(a-0.75)*x + b');
+x = log(time(span_beta));
+y = log(force_curves(n_force_curve,span_beta));
+y_beta_fitmodel = fit(x',y','(a-0.2)*x + b');
+x = log(time(span));
+y = log(force_curves(n_force_curve,span));
+figure(1);
+plot(x,y,'k-')
+hold on
+plot(x,feval(y_alpha_fitmodel,x),'r--')
+plot(x,feval(y_beta_fitmodel,x),'r-.')
+
+x = log(time(span_alpha));
+y = log(sigma(span_alpha)/n);
+y_alpha_fitmodel = fit(x',y','(a-0.75)*x + b');
+x = log(time(span_beta));
+y = log(sigma(span_beta)/n);
+y_beta_fitmodel = fit(x',y','(a-0.2)*x + b');
+x = log(time(span));
+y = log(sigma(span)/n);
+figure(2);
+plot(x,y,'k-')
+hold on
+plot(x,feval(y_alpha_fitmodel,x),'r--')
+plot(x,feval(y_beta_fitmodel,x),'r-.')
+
+figure(3);hold on
+span = time > 1 & time < 2.9;
+span_beta = time > 1.9 & time < 2.9;
+fit_model = fit(time(span)',sigma(span)'/n,'a+b*exp(c*x)','Start',[1.1 .1 -1]);
+plot(log(time(span)),log(feval(fit_model,time(span)) - fit_model.a))
+fit_model = fit(log(time(span_beta))',log(feval(fit_model,time(span_beta)) - fit_model.a),'a*x+b');
+plot(log(time(span)),feval(fit_model,log(time(span))),'-.')
+span = time > 1 & time < 10;
+span_beta = time > 9 & time < 10;
+fit_model = fit(time(span)',force_curves(n_force_curve,span)','a+b*exp(c*x)','Start',[1 .1 -1]);
+plot(log(time(span)),log(feval(fit_model,time(span)) - fit_model.a))
+fit_model = fit(log(time(span_beta))',log(feval(fit_model,time(span_beta)) - fit_model.a),'a*x+b');
+plot(log(time(span)),feval(fit_model,log(time(span))),'-.')
+
+end
+
+function [n_force_curve] = get_n_force_curve
+n_force_curve = 2;
+end
+
+function [L_tau, dzeta, L_eta, d_eta_0, n] = verificate_parameters(n_force_curve)
+% Функция для верификации параметров модели.
+%     Пример использования:
+%     n_force_curve = 2;  % должно совпадать со значением выставленным в функции get_n_force_curve
+%     [L_tau, dzeta, L_eta, d_eta_0, n] = verificate_parameters(n_force_curve);
+
+
+switch n_force_curve 
+  case 1
+    coefficients_initial_values = [...
+      1.038734299154578e+05 ... % L_tau
+      0.0054627092184820... % dzeta
+      0.488093794205235 ... % L_eta
+      0.005258019008872... % n
+      1.843893633906291]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+
+  case 2
+    coefficients_initial_values = [...
+       7.526189514762888e+04 ... % L_tau
+       0.006464748801383... % dzeta
+       0.422867214093489 ... % L_eta
+       0.004447238153784... % n
+       1.519968801891266]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+
+  case 3
+    coefficients_initial_values = [...
+       4.703667358982927e+04 ... % L_tau
+       0.007695432788449... % dzeta
+       0.293277775571131 ... % L_eta
+       0.003221263488407... % n
+       1.079149000542707]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+
+  case 4
+    coefficients_initial_values = [...
+       1.635154151014720e+03 ... % L_tau
+       0.048114417127569... % dzeta
+       0.484795734305463 ... % L_eta
+       0.014457714548634... % n
+       0.226841041632112]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+
+  case 5
+    coefficients_initial_values = [...
+       1.677242853312810e+03 ... % L_tau
+       0.042351291191231... % dzeta
+       0.641116172895703 ... % L_eta
+       0.008440505901412... % n
+       0.260682200799845]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+
+  case 6
+    coefficients_initial_values = [...
+       1.621713960271511e+03 ... % L_tau
+       0.036412335929573... % dzeta
+       0.964611057733632 ... % L_eta
+       0.004242691063008... % n
+       0.305084842799878]; % d_eta_0
+    [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
+end
+end
+
+function [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values)
+% Функция для идентификации параметров модели L_tau и dzeta.
 
 % проверка входных данных
 if sum(size(coefficients_initial_values)) ~= 4
-  coefficients_initial_values = [...
-    10000 ...
-    .009...
-    1000];
+coefficients_initial_values = [...
+   7.526189514762888e+04 ... % L_tau
+   0.006464748801383... % dzeta
+   0.422867214093489 ... % L_eta
+   0.004447238153784... % n
+   1.519968801891266]; % d_eta_0
 end
 
 % оптимизация методом Нелдера-Мида
@@ -111,7 +164,10 @@ fun = @get_difference_sigma_and_F;
 % выходные данные
 L_tau = coefficients(1);
 dzeta = coefficients(2);
-G = coefficients(3);
+L_eta = coefficients(3);
+n = coefficients(4);
+% eta_0 = coefficients(3);
+d_eta_0 = coefficients(5);
 end
 
 function [difference_sigma_and_F] = get_difference_sigma_and_F(coefficients)
@@ -123,32 +179,33 @@ time = time_step:time_step:10;
 [force_curves] = readmatrix('data.txt')';
 
 % симуляция на основе мезоскопической модели
-eta_0 = .01;
-d_eta_0 = .9;
+eta_0 = .01; % .01
+d_eta_0 = coefficients(5); % .9
     
 L_tau = coefficients(1);
 dzeta = coefficients(2);
-G = coefficients(3);
+L_eta = coefficients(3);
+G = 1;
 
 eps_start = eta_0 * dzeta;
 eps_end = .1;
 eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
 eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
     
-[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0);
+[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta);
 
 % диапазон оптимизации
-optimization_span = time > 0 & time < 10.1;
-n_force_curve = 6;
+optimization_span = time > 0 & time < 1.;
+n_force_curve = get_n_force_curve;
 
 % сравнение результатов 2 моделей(при оптимизации д.б. закомментировано)
-% figure(n_force_curve);
+% figure(n_force_curve);hold on;
 % plot(time,force_curves(n_force_curve,:),'k-',...
-%   time,sigma,'k--');
-% close figure(2);
+%   time,sigma/coefficients(4),'k--');
+% close gcf;
 
 % расчет целевой функции, по которой происходит оптимизация
-difference_sigma_and_F = max(abs(sigma(optimization_span) - force_curves(n_force_curve,optimization_span)));
+difference_sigma_and_F = max(abs(sigma(optimization_span)/coefficients(4) - force_curves(n_force_curve,optimization_span)));
 end
 
 function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta)
@@ -201,7 +258,7 @@ function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0
 %       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
 %     end
 
-if nargin < 9
+if nargin < 8
   L_eta = 1;
 end
 
