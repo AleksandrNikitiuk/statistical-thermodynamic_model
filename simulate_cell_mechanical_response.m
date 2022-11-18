@@ -1,102 +1,324 @@
-time_step = .013;
-time = (time_step:time_step:10)';
-time_loading = time(time <= 1);
-time_dwell = time(time > 1);
+% n_force_curve = 1;  % должно совпадать со значением выставленным в функции get_n_force_curve
+% [E2, Lo, nu, n] = verificate_parameters(n_force_curve);
 
-sigma_0 = 0.;
-initial_conditions = sigma_0;
+    time_step = .013;
+    time = (time_step:time_step:10)';
+    time_loading = time(time <= 1);
+    time_dwell = time(time > 1);
 
-E1 = 300;
-E2 = 100;
-Lo = 1;
-nu = 100;
+    sigma_0 = 0.;
+    initial_conditions = sigma_0;
 
-eps = .005;
-deps_dt = eps * time_step;
-deps_dt_dwell = 0;
+    E1 = 200;
+    E2 = 100;
+    Lo = 15;
+    nu = 5;
 
-theta = [.2];
-line_style = {'-','--',':'};
+    eps = .005;
+    deps_dt = eps * time_step;
+    deps_dt_dwell = 0;
 
-for i = 1:length(theta)
-  % loading
-  [~,Sigma] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt,E1,E2,Lo,nu,theta(i)),time_loading,initial_conditions);
-  
-  % dwell
-  initial_conditions = Sigma(end);
-  [~,Sigma_dwell] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt_dwell,E1,E2,Lo,nu,theta(i)),time_dwell,initial_conditions);
-  Sigma = [Sigma; Sigma_dwell];
+    theta = [.2];
+    line_style = {'-','--',':'};
 
-  eps_time = [eps*time_loading; eps * ones(length(time_dwell),1)];
-  
-%   figure(1);hold on
-%   plot(eps_time,Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%   xlabel(['{\it' char(949) '}']);
-%   ylabel('\sigma');
-%   set_figure;
-% 
-%   figure(2);hold on
-%   plot(time,Sigma ./ eps_time,'k','LineWidth',2,'LineStyle',line_style{i})
-%   xlabel('time');
-%   ylabel('E');
-%   set_figure;
+    for i = 1:length(theta)
+      % loading
+      [~,Sigma] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt,E1,E2,Lo,nu,theta(i)),time_loading,initial_conditions);
 
-  figure(3);hold on
-  plot(time,(Sigma ./ eps_time) .* eps_time.^(3/2),'k','LineWidth',2,'LineStyle',line_style{i})
-  xlabel('time');
-  ylabel('F');
-  set_figure;
-end
-% for i = 1:3
-%   figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
-% end
+      % dwell
+      initial_conditions = Sigma(end);
+      [~,Sigma_dwell] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt_dwell,E1,E2,Lo,nu,theta(i)),time_dwell,initial_conditions);
+      Sigma = [Sigma; Sigma_dwell];
+
+      eps_time = [eps*time_loading; eps * ones(length(time_dwell),1)];
+
+    %   figure(1);hold on
+    %   plot(eps_time,Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+    %   xlabel(['{\it' char(949) '}']);
+    %   ylabel('\sigma');
+    %   set_figure;
+    % 
+    %   figure(2);hold on
+    %   plot(time,Sigma ./ eps_time,'k','LineWidth',2,'LineStyle',line_style{i})
+    %   xlabel('time');
+    %   ylabel('E');
+    %   set_figure;
+
+      figure(3);hold on
+      plot(time,(Sigma ./ eps_time) .* eps_time.^(3/2),'k','LineWidth',2,'LineStyle',line_style{i})
+      xlabel('time');
+      ylabel('F');
+      set_figure;
+    end
+    % for i = 1:3
+    %   figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
+    % end
 
 
 %%
+function [n_force_curve] = get_n_force_curve
+n_force_curve = 1;
+end
+
+function [E2, Lo, nu, n] = verificate_parameters(n_force_curve)
+% Функция для верификации параметров модели.
+%     Пример использования:
+%     n_force_curve = 1;  % должно совпадать со значением выставленным в функции get_n_force_curve
+%     [E2, Lo, nu, n] = verificate_parameters(n_force_curve);
+
+
+switch n_force_curve 
+  case 1
+    coefficients_initial_values = [...
+      100 ... % E2 30
+      1 ... % Lo 1
+      100 ... % nu .05
+      1 ]; % n .001
+
+  case 2    
+
+  case 3    
+
+  case 4    
+
+  case 5    
+
+  case 6
+    
+end
+
+[E2, Lo, nu, n] = identificate_parameters(coefficients_initial_values);
+
+end
+
+function [E2, Lo, nu, n] = identificate_parameters(coefficients_initial_values)
+% Функция для идентификации параметров модели L_tau и dzeta.
+
+% проверка входных данных
+if sum(size(coefficients_initial_values)) ~= 5
+coefficients_initial_values = [...
+   7.526189514762888e+04 ... % L_tau
+   0.006464748801383... % dzeta
+   0.422867214093489 ... % L_eta
+   0.004447238153784];... % n
+%    1.519968801891266]; % d_eta_0
+end
+
+% оптимизация методом Нелдера-Мида
+options = optimset('Display','iter','PlotFcns',@optimplotfval);
+fun = @get_difference_f_and_F;
+
+[coefficients,fval,exitflag,output] = fminsearch(fun,coefficients_initial_values,options)
+
+% выходные данные
+E2 = coefficients(1);
+Lo = coefficients(2);
+nu = coefficients(3);
+n = coefficients(4);
+end
+
+function [difference_f_and_F] = get_difference_f_and_F(coefficients)
+% Функция для расчета разницы между силовыми кривыми стат. модели и модели КФ.
+
+% загрузка результатов симуляции КФ-модели
+time_step = .0013;
+time = (time_step:time_step:10)';
+[force_curves] = readmatrix('data.txt')';
+
+% симуляция на основе мезоскопической модели
+time_loading = time(time <= 1);
+time_dwell = time(time > 1);
+
+sigma_0 = .0;
+    
+E1 = 300;
+E2 = coefficients(1);
+Lo = coefficients(2);
+nu = coefficients(3);
+
+eps = .005;
+deps_dt = eps * time_step;
+
+theta = .2;
+    
+[eps_t,sigma] = get_force_curve(time_loading,time_dwell,sigma_0,eps,deps_dt,E1,E2,Lo,nu,theta);
+f = (sigma ./ eps_t) .* eps_t.^(3/2);
+
+% диапазон оптимизации
+optimization_span = time > 0 & time < 11;
+n_force_curve = get_n_force_curve;
+
+% сравнение результатов 2 моделей(при оптимизации д.б. закомментировано)
+figure(n_force_curve);hold on;
+plot(time,force_curves(n_force_curve,:),'k-',...
+  time,f/coefficients(4),'k--');
+close gcf;
+
+% расчет целевой функции, по которой происходит оптимизация
+difference_f_and_F = max(abs(f(optimization_span)/coefficients(4) - force_curves(n_force_curve,optimization_span)'));
+end
+
+function [eps_t,sigma,time] = get_force_curve(time_loading,time_dwell,sigma_0,eps,deps_dt,E1,E2,Lo,nu,theta)
+% Функция для расчета силовой кривой (моделирование экспериметнта на АСМ).
+%     Пример использования:
+%     time_step = .0013;
+%     time = time_step:time_step:10;
+%     
+%     eta_0 = .01;
+%     d_eta_0 = .9;
+%     
+%     dzeta = .009; % .01 .009 .007 .005
+%     
+%     eps_start = eta_0 * dzeta;
+%     eps_end = .1;
+%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+%     eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+%     
+%     L_tau = [0 5000 10000]; % 0 5000 10000
+%     line_style = {'-','--',':'};
+%     
+%     for i = 1:length(L_tau)
+%       [eta,sigma] = get_force_curve(time,eps,L_tau(i));
+%     
+%       figure(1);hold on
+%       plot(time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%       
+%       figure(2);hold on
+%       plot(time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\eta');
+%       set_figure;
+%       
+%       figure(3);hold on
+%       plot(log(time(2:floor(1*end/10))),log(sigma(2:floor(1*end/10))),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%       
+%       figure(4);hold on
+%       plot(log(time((floor(1*end/10)+1):end)),log(sigma((floor(1*end/10)+1):end)),'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('t');
+%       ylabel('\sigma');
+%       set_figure;
+%     end
+%     for i = 1:4
+%       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
+%     end
+
+if nargin < 13
+  lambda = 1.;
+  gamma = 1.;
+end
+
+if nargin < 10
+  theta = .2;
+end
+
+if nargin < 9
+  nu = 1.;
+end
+
+if nargin < 8
+  Lo = 1.;
+end
+
+if nargin < 7
+  E2 = 1.;
+end
+
+if nargin < 6
+  E1 = 1.;
+end
+
+if nargin < 5
+  deps_dt = 0.;
+end
+
+if nargin < 4
+  eps = .05;
+end
+
+if nargin < 3
+  sigma_0 = 0;
+end
+
+if nargin < 2
+  time_step = .013;
+  time = (time_step:time_step:10)';
+  time_loading = time(time <= 1);
+  time_dwell = time(time > 1);
+end
+
+initial_conditions = sigma_0;
+
+[~,sigma] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt,E1,E2,Lo,nu,theta),time_loading,initial_conditions);
+initial_conditions = sigma(end);
+[~,sigma_dwell] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,0,E1,E2,Lo,nu,theta),time_dwell,initial_conditions);
+sigma = [sigma; sigma_dwell];
+
+eps_t = [eps*time_loading; eps * ones(length(time_dwell),1)];
+time = [time_loading; time_dwell];
+
+end
+
 function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lambda,gamma)
 % Функция для расчета правой части дифференциального уравнения
 %     Пример использования:
 %     time_step = .013;
 %     time = (time_step:time_step:10)';
+%     time_loading = time(time <= 1);
+%     time_dwell = time(time > 1);
 % 
 %     sigma_0 = 0.;
 %     initial_conditions = sigma_0;
 % 
-%     E1 = 20;
-%     E2 = 1;
+%     E1 = 300;
+%     E2 = 100;
 %     Lo = 1;
-%     nu = 2;
+%     nu = 100;
 % 
-%     eps = .05;
+%     eps = .005;
 %     deps_dt = eps * time_step;
+%     deps_dt_dwell = 0;
 % 
-%     theta = [1 2 3];
+%     theta = [.2];
 %     line_style = {'-','--',':'};
 % 
 %     for i = 1:length(theta)
-%       [~,Sigma] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt,E1,E2,Lo,nu,theta(i)),time,initial_conditions);
+%       % loading
+%       [~,Sigma] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt,E1,E2,Lo,nu,theta(i)),time_loading,initial_conditions);
 % 
-%       figure(1);hold on
-%       plot((eps*time),Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel(['{\it' char(949) '}']);
-%       ylabel('\sigma');
-%       set_figure;
+%       % dwell
+%       initial_conditions = Sigma(end);
+%       [~,Sigma_dwell] = ode15s(@(t,sigma) get_rhs_expr(t,sigma,eps,deps_dt_dwell,E1,E2,Lo,nu,theta(i)),time_dwell,initial_conditions);
+%       Sigma = [Sigma; Sigma_dwell];
 % 
-%       figure(2);hold on
-%       plot(time,Sigma ./ (eps*time),'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('time');
-%       ylabel('E');
-%       set_figure;
+%       eps_time = [eps*time_loading; eps * ones(length(time_dwell),1)];
+% 
+%     %   figure(1);hold on
+%     %   plot(eps_time,Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%     %   xlabel(['{\it' char(949) '}']);
+%     %   ylabel('\sigma');
+%     %   set_figure;
+%     % 
+%     %   figure(2);hold on
+%     %   plot(time,Sigma ./ eps_time,'k','LineWidth',2,'LineStyle',line_style{i})
+%     %   xlabel('time');
+%     %   ylabel('E');
+%     %   set_figure;
 % 
 %       figure(3);hold on
-%       plot(time,(Sigma ./ (eps*time)) .* (eps*time).^(3/2),'k','LineWidth',2,'LineStyle',line_style{i})
+%       plot(time,(Sigma ./ eps_time) .* eps_time.^(3/2),'k','LineWidth',2,'LineStyle',line_style{i})
 %       xlabel('time');
 %       ylabel('F');
 %       set_figure;
 %     end
-%     for i = 1:3
-%       figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
-%     end
+%     % for i = 1:3
+%     %   figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
+%     % end
 
 
 if nargin < 11
@@ -695,308 +917,6 @@ qr = 1;
 % ql = 1;
 % pr = -1e-12 * eta_r;
 % qr = 1;
-end
-
-function visualize_double_pl_relaxation_of_cell
-
-time_step = .0013;
-time = time_step:time_step:10;
-[force_curves] = readmatrix('data.txt')';
-
-n_force_curve = 4; % 1 2
-
-eta_0 = .01;
-d_eta_0 = 0.226841041632112; % 1.843893633906291 1.519968801891266
-    
-L_tau = 1.635154151014720e+03; % 1.038734299154578e+05 7.526189514762888e+04
-dzeta = 0.048114417127569; % 0.0054627092184820 0.006464748801383
-L_eta = 0.484795734305463; % 0.488093794205235 0.422867214093489
-G = 1;
-n = 0.014457714548634; % 0.005258019008872 0.004447238153784
-
-eps_start = eta_0 * dzeta;
-eps_end = .1;
-eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
-    
-[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta);
-
-span_alpha = time > .01 & time < 1.;
-span_beta = time > 0.0013 & time < .01;
-span = time > .0013 & time < 1.;
-
-% x = log(time(span_alpha));
-% y = log(force_curves(n_force_curve,span_alpha));
-% y_alpha_fitmodel = fit(x',y','(a-0.75)*x + b');
-% x = log(time(span_beta));
-% y = log(force_curves(n_force_curve,span_beta));
-% y_beta_fitmodel = fit(x',y','(a-0.2)*x + b');
-% x = log(time(span));
-% y = log(force_curves(n_force_curve,span));
-% figure(1);
-% plot(x,y,'k-')
-% hold on
-% plot(x,feval(y_alpha_fitmodel,x),'r--')
-% plot(x,feval(y_beta_fitmodel,x),'r-.')
-
-x = log(time(span_alpha));
-y = log(sigma(span_alpha)/n);
-y_alpha_fitmodel = fit(x',y','(a-0.75)*x + b');
-x = log(time(span_beta));
-y = log(sigma(span_beta)/n);
-y_beta_fitmodel = fit(x',y','(a-0.2)*x + b');
-x = log(time(span));
-y = log(sigma(span)/n);
-figure(2);
-hold on
-plot(x,y,'k-')
-plot(x,feval(y_alpha_fitmodel,x),'r--')
-plot(x,feval(y_beta_fitmodel,x),'r-.')
-
-% figure(3);hold on
-% span = time > 1 & time < 2.9;
-% span_beta = time > 1.9 & time < 2.9;
-% fit_model = fit(time(span)',sigma(span)'/n,'a+b*exp(c*x)','Start',[1.1 .1 -1]);
-% plot(log(time(span)),log(feval(fit_model,time(span)) - fit_model.a))
-% fit_model = fit(log(time(span_beta))',log(feval(fit_model,time(span_beta)) - fit_model.a),'a*x+b');
-% plot(log(time(span)),feval(fit_model,log(time(span))),'-.')
-% span = time > 1 & time < 10;
-% span_beta = time > 9 & time < 10;
-% fit_model = fit(time(span)',force_curves(n_force_curve,span)','a+b*exp(c*x)','Start',[1 .1 -1]);
-% plot(log(time(span)),log(feval(fit_model,time(span)) - fit_model.a))
-% fit_model = fit(log(time(span_beta))',log(feval(fit_model,time(span_beta)) - fit_model.a),'a*x+b');
-% plot(log(time(span)),feval(fit_model,log(time(span))),'-.')
-
-end
-
-function [n_force_curve] = get_n_force_curve
-n_force_curve = 1;
-end
-
-function [L_tau, dzeta, L_eta, n] = verificate_parameters(n_force_curve)
-% Функция для верификации параметров модели.
-%     Пример использования:
-%     n_force_curve = 2;  % должно совпадать со значением выставленным в функции get_n_force_curve
-%     [L_tau, dzeta, L_eta, d_eta_0, n] = verificate_parameters(n_force_curve);
-
-
-switch n_force_curve 
-  case 1
-    coefficients_initial_values = [...
-      5 ... % L_tau
-      1 ... % dzeta
-      1 ... % L_eta
-      1]; % n
-%       1.843893633906291]; % d_eta_0    
-
-  case 2
-    coefficients_initial_values = [...
-       4.603758028778943e+02 ... % L_tau
-       7.405424894001364 ... % dzeta
-       1.181504051673577 ... % L_eta
-       2.348331080151025]; % n
-%        1.519968801891266]; % d_eta_0
-
-  case 3
-    coefficients_initial_values = [...
-       350 ... % L_tau
-       8 ... % dzeta
-       1 ... % L_eta
-       1]; % n
-%        1.079149000542707]; % d_eta_0
-
-  case 4
-    coefficients_initial_values = [...
-       1.635154151014720e+03 ... % L_tau
-       0.048114417127569... % dzeta
-       0.484795734305463 ... % L_eta
-       0.014457714548634]; % n
-%        0.226841041632112]; % d_eta_0
-
-  case 5
-    coefficients_initial_values = [...
-       1.677242853312810e+03 ... % L_tau
-       0.042351291191231... % dzeta
-       0.641116172895703 ... % L_eta
-       0.008440505901412]; % n
-%        0.260682200799845]; % d_eta_0
-
-  case 6
-    coefficients_initial_values = [...
-       1.621713960271511e+03 ... % L_tau
-       0.036412335929573... % dzeta
-       0.964611057733632 ... % L_eta
-       0.004242691063008]; % n
-%        0.305084842799878]; % d_eta_0
-end
-
-% [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values);
-[L_tau, dzeta, L_eta, n] = identificate_parameters(coefficients_initial_values);
-
-end
-
-% function [L_tau, dzeta, L_eta, d_eta_0, n] = identificate_parameters(coefficients_initial_values)
-function [L_tau, dzeta, L_eta, n] = identificate_parameters(coefficients_initial_values)
-% Функция для идентификации параметров модели L_tau и dzeta.
-
-% проверка входных данных
-if sum(size(coefficients_initial_values)) ~= 5
-coefficients_initial_values = [...
-   7.526189514762888e+04 ... % L_tau
-   0.006464748801383... % dzeta
-   0.422867214093489 ... % L_eta
-   0.004447238153784];... % n
-%    1.519968801891266]; % d_eta_0
-end
-
-% оптимизация методом Нелдера-Мида
-options = optimset('Display','iter','PlotFcns',@optimplotfval);
-fun = @get_difference_sigma_and_F;
-
-[coefficients,fval,exitflag,output] = fminsearch(fun,coefficients_initial_values,options)
-
-% выходные данные
-L_tau = coefficients(1);
-dzeta = coefficients(2);
-L_eta = coefficients(3);
-n = coefficients(4);
-% eta_0 = coefficients(3);
-% d_eta_0 = coefficients(5);
-end
-
-function [difference_sigma_and_F] = get_difference_sigma_and_F(coefficients)
-% Функция для расчета разницы между силовыми кривыми стат. модели и модели КФ.
-
-% загрузка результатов симуляции КФ-модели
-time_step = .0013;
-time = time_step:time_step:10;
-[force_curves] = readmatrix('data.txt')';
-
-% симуляция на основе мезоскопической модели
-eta_0 = .01; % .01
-% d_eta_0 = coefficients(5); % .9
-    
-L_tau = coefficients(1);
-dzeta = coefficients(2);
-L_eta = coefficients(3);
-G = 1;
-
-% eps_start = eta_0 * dzeta;
-% eps_end = .1;
-% eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-% eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
-eps = .01 / time_step;
-    
-% [~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta);
-[~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,L_eta);
-
-% диапазон оптимизации
-optimization_span = time > 0 & time < 1.1;
-n_force_curve = get_n_force_curve;
-
-% сравнение результатов 2 моделей(при оптимизации д.б. закомментировано)
-% figure(n_force_curve);hold on;
-% plot(time,force_curves(n_force_curve,:),'k-',...
-%   time,sigma/coefficients(4),'k--');
-% close gcf;
-
-% расчет целевой функции, по которой происходит оптимизация
-difference_sigma_and_F = max(abs(sigma(optimization_span)/coefficients(4) - force_curves(n_force_curve,optimization_span)));
-end
-
-% function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta)
-function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,L_eta)
-% Функция для расчета силовой кривой (моделирование экспериметнта на АСМ).
-%     Пример использования:
-%     time_step = .0013;
-%     time = time_step:time_step:10;
-%     
-%     eta_0 = .01;
-%     d_eta_0 = .9;
-%     
-%     dzeta = .009; % .01 .009 .007 .005
-%     
-%     eps_start = eta_0 * dzeta;
-%     eps_end = .1;
-%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-%     eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
-%     
-%     L_tau = [0 5000 10000]; % 0 5000 10000
-%     line_style = {'-','--',':'};
-%     
-%     for i = 1:length(L_tau)
-%       [eta,sigma] = get_force_curve(time,eps,L_tau(i));
-%     
-%       figure(1);hold on
-%       plot(time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('t');
-%       ylabel('\sigma');
-%       set_figure;
-%       
-%       figure(2);hold on
-%       plot(time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('t');
-%       ylabel('\eta');
-%       set_figure;
-%       
-%       figure(3);hold on
-%       plot(log(time(2:floor(1*end/10))),log(sigma(2:floor(1*end/10))),'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('t');
-%       ylabel('\sigma');
-%       set_figure;
-%       
-%       figure(4);hold on
-%       plot(log(time((floor(1*end/10)+1):end)),log(sigma((floor(1*end/10)+1):end)),'k','LineWidth',2,'LineStyle',line_style{i})
-%       xlabel('t');
-%       ylabel('\sigma');
-%       set_figure;
-%     end
-%     for i = 1:4
-%       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
-%     end
-
-if nargin < 8
-  L_eta = 1;
-end
-
-if nargin < 7
-  eta_0 = .01;
-  d_eta_0 = .9;
-end
-
-if nargin < 5
-  G = 1000;
-end
-
-if nargin < 4
-  dzeta = .009; % .01 .009 .007 .005
-end
-
-if nargin < 3
-  L_tau = [10000]; % 0 1000 10000
-end
-
-if nargin < 2
-  eps_start = eta_0 * dzeta;
-  eps_end = .1;
-  eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-  eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
-end
-
-if nargin < 1
-  time_step = .0013;
-  time = time_step:time_step:10;
-end
-
-% initial_conditions = [eta_0; d_eta_0];
-initial_conditions = eta_0;
-
-deps_dt = gradient(eps) / (time(2) - time(1));
-
-% [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,deps_dt,G,dzeta,L_tau,L_eta),time,initial_conditions);
-[~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,eps,G,dzeta,L_tau,L_eta),time,initial_conditions);
-sigma = 3/2 * G * (eps - dzeta * eta(:,1)');
-
 end
 
 function [model_parameters] = get_model_parameters
