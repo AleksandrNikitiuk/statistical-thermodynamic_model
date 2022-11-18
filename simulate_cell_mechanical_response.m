@@ -1,54 +1,43 @@
-% time_step = .013;
-% time = time_step:time_step:10;
-% 
-% eta_0 = .04;
-% d_eta_0 = .1;
-% initial_conditions = eta_0;
-% 
-% G = 10;
-% dzeta = 1;
-% L_eta = .1;
-% L_tau = 0;
-% 
-% eps_start = 0.;
-% eps_end = .9;
-% eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-% deps_dt = gradient(eps) / time_step;
-% 
-% theta = [.2 .23 .3];
-% line_style = {'-','--',':'};
-% 
-% for i = 1:length(theta)
-%   [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,eps,G,dzeta,L_tau,L_eta,theta(i)),time,initial_conditions);
-%   sigma = G * (eps - dzeta * eta(:,1)');
-% 
-%   figure(1);hold on
-%   plot(eps,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%   xlabel(['{\it' char(949) '}']);
-%   ylabel('\sigma');
-%   set_figure;
-% 
-%   figure(2);hold on
-%   plot(eps,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
-%   xlabel(['{\it' char(949) '}']);
-%   ylabel('\eta');
-%   set_figure;
-% end
-% for i = 1:2
-%   figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
-% end
+    time_step = .013;
+    time = time_step:time_step:10;
 
-theta = .2;
-Sigma = .05; % .2 .15 -.15
-eta = -.5:.01:1;
+    eta_0 = .04;
+    d_eta_0 = .1;
+    initial_conditions = eta_0;
 
-[free_energy_uniaxial_ordering] = get_free_energy_uniaxial_ordering(eta, theta, Sigma);
+    G = 1000;
+    dzeta = .0001;
+    L_eta = .01;
+    L_tau = 0;
 
-figure(1);hold on;
-plot(eta, free_energy_uniaxial_ordering, 'k');
-xlabel('\eta');
-ylabel('F/n\lambda');
-% hold off;
+%     eps_start = eta_0 * dzeta;
+%     eps_end = .1;
+%     eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+    eps = .02;
+    % deps_dt = gradient(eps) / time_step;
+
+    theta = [.2];
+    line_style = {'-','--',':'};
+
+    for i = 1:length(theta)
+      [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,eps,G,dzeta,L_tau,L_eta,theta(i)),time,initial_conditions);
+      sigma = G * (eps - dzeta * eta(:,1)');
+
+      figure(1);hold on
+      plot(eps * time,sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+      xlabel(['{\it' char(949) '}']);
+      ylabel('\sigma');
+      set_figure;
+
+      figure(2);hold on
+      plot(eps * time,eta(:,1),'k','LineWidth',2,'LineStyle',line_style{i})
+      xlabel(['{\it' char(949) '}']);
+      ylabel('\eta');
+      set_figure;
+    end
+    for i = 1:2
+      figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
+    end
 
 
 %%
@@ -256,7 +245,7 @@ plot(x,feval(y_beta_fitmodel,x),'r-.')
 end
 
 function [n_force_curve] = get_n_force_curve
-n_force_curve = 3;
+n_force_curve = 1;
 end
 
 function [L_tau, dzeta, L_eta, n] = verificate_parameters(n_force_curve)
@@ -269,10 +258,10 @@ function [L_tau, dzeta, L_eta, n] = verificate_parameters(n_force_curve)
 switch n_force_curve 
   case 1
     coefficients_initial_values = [...
-      550 ... % L_tau
+      5 ... % L_tau
       1 ... % dzeta
       1 ... % L_eta
-      5.9]; % n
+      1]; % n
 %       1.843893633906291]; % d_eta_0    
 
   case 2
@@ -365,18 +354,19 @@ eta_0 = .01; % .01
 L_tau = coefficients(1);
 dzeta = coefficients(2);
 L_eta = coefficients(3);
-G = 1000;
+G = 1;
 
-eps_start = eta_0 * dzeta;
-eps_end = .1;
-eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
-eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+% eps_start = eta_0 * dzeta;
+% eps_end = .1;
+% eps = (eps_start:((eps_end - eps_start)/(length(time)-1)):eps_end);
+% eps((floor(1*end/10)+1):end) = eps(floor(1*end/10));
+eps = .01 / time_step;
     
 % [~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,d_eta_0,L_eta);
 [~,sigma] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,L_eta);
 
 % диапазон оптимизации
-optimization_span = time > 0 & time < 5.;
+optimization_span = time > 0 & time < 1.1;
 n_force_curve = get_n_force_curve;
 
 % сравнение результатов 2 моделей(при оптимизации д.б. закомментировано)
@@ -440,13 +430,13 @@ function [eta,sigma,time] = get_force_curve(time,eps,L_tau,dzeta,G,eta_0,L_eta)
 %       figure(i);legend(compose('{\\itL_{\\tau}}=%i',L_tau));
 %     end
 
-if nargin < 7
+if nargin < 8
   L_eta = 1;
 end
 
-if nargin < 6
+if nargin < 7
   eta_0 = .01;
-%   d_eta_0 = .9;
+  d_eta_0 = .9;
 end
 
 if nargin < 5
@@ -476,7 +466,7 @@ end
 % initial_conditions = [eta_0; d_eta_0];
 initial_conditions = eta_0;
 
-% deps_dt = gradient(eps) / (time(2) - time(1));
+deps_dt = gradient(eps) / (time(2) - time(1));
 
 % [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,deps_dt,G,dzeta,L_tau,L_eta),time,initial_conditions);
 [~,eta] = ode15s(@(t,eta) get_rhs_expr(t,eta,eps,G,dzeta,L_tau,L_eta),time,initial_conditions);
@@ -549,19 +539,62 @@ rhs_expr = zeros(size(varibles));
 %   - theta * varibles(2) * (1.4 / (1 - varibles(1)).^2)...
 %   + 2/3 * G * (eps(ceil(t)) - dzeta * varibles(2))...
 %   );
-sigma = 3/2 * G * (eps(ceil(t)) - dzeta * varibles(1));
-dF_deta =...
-  -1.25 / (1 - varibles(1))...
-  -9 / (2 - varibles(1))...
-  -.5 / (.5 - varibles(1))...
-  -1 / (1.1 - varibles(1))...
-  -73.73 / (19.1 - varibles(1))...
-  ;
+
+sigma = 3/2 * G * (eps * t - dzeta * varibles(1));
+
+eta = -.5:.013:1;
+free_energy = get_free_energy_approximation(eta,sigma,theta);
+figure(3);hold on;
+plot(eta,free_energy);
+
+% dF_deta =...
+%   -1.25 / (1 - varibles(1))...
+%   -9 / (2 - varibles(1))...
+%   -.5 / (.5 + varibles(1))...
+%   -1 / (1.1 + varibles(1))...
+%   -73.73 / (19.1 + varibles(1))...
+%   ;
+p1 =        4109;
+p2 =       -9339;
+p3 =        5731;
+p4 =        1115;
+p5 =       -1868;
+p6 =       132.7;
+p7 =       198.2;
+p8 =      -26.04;
+p9 =       2.659;
+p10 =      0.2448;
+dF_deta = ...
+  p1*varibles(1)^10 ...
+  + p2*varibles(1)^9 ...
+  + p3*varibles(1)^8 ...
+  + p4*varibles(1)^7 ...
+  + p5*varibles(1)^6 ...
+  + p6*varibles(1)^5 ...
+  + p7*varibles(1)^4 ...
+  + p8*varibles(1)^3 ...
+  + p9*varibles(1)^2 ...
+  + p10 * varibles(1);
 rhs_expr(1) =...
   (...
   L_eta * dzeta^-1 * ( 2/3 * sigma - 4/9 * theta * dF_deta + varibles(1) )...
   ) /...
   (1 + 2/3 * L_eta * L_tau);
+
+% dF_deta =...
+%   -1.25 * varibles(2) / (1 - varibles(1)).^2 ...
+%   -9 * varibles(2) / (2 - varibles(1)).^2 ...
+%   -.5 * varibles(2) / (.5 - varibles(1)).^2 ...
+%   -1 * varibles(2) / (1.1 - varibles(1)).^2 ...
+%   -73.73 * varibles(2) / (19.1 - varibles(1)).^2 ...
+%   ;
+% rhs_expr(1) = varibles(2);
+% rhs_expr(2) = L_eta * (...
+%   G * eps(ceil(t))...
+%   + varibles(2)...
+%   - 4/9 * theta * dF_deta ... % varibles(2) * (1.4 / (1 - varibles(1)).^2)
+%   ) / ...
+%   (dzeta * (1 + 2/3 * L_eta * L_tau));
 
 end
 
@@ -620,7 +653,7 @@ function [fitobj] = get_xi_approximation(xis)
 %        f2 =    0.002682  (-0.3559, 0.3613)
 
 if nargin < 1
-  xis = -100:.13:100; % -4:.13:12
+  xis = -20:.13:20; % -4:.13:12
 end
 
 syms xi x;
@@ -636,11 +669,10 @@ eta_fun = matlabFunction(3/2 * (int_R_fun_der/int_R_fun - 1/3));
 
 eta = eta_fun(xis);
 
-% fitobj = fit(eta', xis',...
-%   '(  a1 * x^4 + b1 * x^3 + c1 * x^2 + d1 * x^1 + e1 ) / ( a2 * x^5 + b2 * x^4 + c2 * x^3 + d2 * x^2 + e2 * x^1 + f2 )',...
-%   'StartPoint',[-0.0115 0.0001344 -0.0169 0.002377 0.02019 -0.003805 0.01832 -0.005388 -0.0001432 0.003987  0.002682]);
 fitobj = fit(eta', xis',...
-  '(  d1 * x^1 + e1 ) / ( d2 * x^2 + e2 * x^1 + f2 )')
+  '(  a1 * x^4 + b1 * x^3 + c1 * x^2 + d1 * x^1 + e1 ) / ( a2 * x^5 + b2 * x^4 + c2 * x^3 + d2 * x^2 + e2 * x^1 + f2 )');
+% fitobj = fit(eta', xis',...
+%   '(  d1 * x^1 + e1 ) / ( d2 * x^2 + e2 * x^1 + f2 )')
 end
 
 function [R_approximation,R,fitmodel] = get_R_approximations(xi)
