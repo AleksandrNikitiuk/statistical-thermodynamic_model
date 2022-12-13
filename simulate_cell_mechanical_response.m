@@ -1,7 +1,4 @@
-% n_force_curve = 1;  % должно совпадать со значением выставленным в функции get_n_force_curve
-% [E2, Lo, nu, n] = verificate_parameters(n_force_curve);
-
-    time_step = .013;
+time_step = .013;
     time = (time_step:time_step:10)';
     time_loading = time(time <= 1);
     time_dwell = time(time > 1);
