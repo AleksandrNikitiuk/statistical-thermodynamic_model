@@ -1,5 +1,5 @@
 function [eta_curve, eta_line] = get_eta(xis,sigma,T,lambda,gamma,R_fun,R_derivative_fun)
-% Функция для расчета зависимости eta(xi).
+% Функция для расчета зависимостей eta(xi), кривой и линии.
 %     Пример использования:
 %     T = .4; % .4 .26 .16
 %     sigma = .1; % .1 -.5 .5

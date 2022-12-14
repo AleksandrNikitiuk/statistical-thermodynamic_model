@@ -32,17 +32,17 @@ function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lamb
 % 
 %       eps_time = [eps*time_loading; eps * ones(length(time_dwell),1)];
 % 
-%     %   figure(1);hold on
-%     %   plot(eps_time,Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
-%     %   xlabel(['{\it' char(949) '}']);
-%     %   ylabel('\sigma');
-%     %   set_figure;
-%     % 
-%     %   figure(2);hold on
-%     %   plot(time,Sigma ./ eps_time,'k','LineWidth',2,'LineStyle',line_style{i})
-%     %   xlabel('time');
-%     %   ylabel('E');
-%     %   set_figure;
+%       figure(1);hold on
+%       plot(eps_time,Sigma,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel(['{\it' char(949) '}']);
+%       ylabel('\sigma');
+%       set_figure;
+%     
+%       figure(2);hold on
+%       plot(time,Sigma ./ eps_time,'k','LineWidth',2,'LineStyle',line_style{i})
+%       xlabel('time');
+%       ylabel('E');
+%       set_figure;
 % 
 %       figure(3);hold on
 %       plot(time,(Sigma ./ eps_time) .* eps_time.^(3/2),'k','LineWidth',2,'LineStyle',line_style{i})
@@ -50,9 +50,9 @@ function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lamb
 %       ylabel('F');
 %       set_figure;
 %     end
-%     % for i = 1:3
-%     %   figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
-%     % end
+%     for i = 1:3
+%       figure(i);legend(compose('{\\it\\Theta}=%.2f',theta));
+%     end
 
 
 if nargin < 11
