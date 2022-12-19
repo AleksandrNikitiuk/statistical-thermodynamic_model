@@ -146,9 +146,9 @@ if E2 == 0
   dF_deps_o = ...
     -2/3 * theta / gamma * feval(fit_model,varibles(1)) + lambda / gamma * varibles(1);
 
-  rhs_expr(1) = 1/get_viscosity(1/Lo) * ( sigma + dF_deps_o );
+  rhs_expr(1) = 1/get_viscosity(1/Lo) * ( sigma + dF_deps_o ); % ,varibles(1)
 else
-  rhs_expr(1) = E2 * deps_dt - nu/E2 * varibles(1);
+  rhs_expr(1) = E2 * deps_dt - E2/nu * varibles(1);
 end
 
 end
