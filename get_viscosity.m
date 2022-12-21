@@ -1,4 +1,4 @@
-function [viscosity] = get_viscosity(initial_viscosity,eps_o)
+function [viscosity] = get_viscosity(initial_viscosity,eps_o,sigma_o,theta,lambda,gamma)
 % Функция для расчета коэффициента вязкости.
 %     Пример использования:
 %     % time
@@ -55,7 +55,17 @@ if nargin < 2
   return
 end
 
-viscosity = initial_viscosity * eps_o.^-1;
+if nargin < 4
+  theta = .2;
+end
+
+if nargin < 6
+  lambda = 1;
+  gamma = 1;
+end
+
+viscosity = initial_viscosity ...
+  * exp( (lambda * eps_o.^2 - gamma * sigma_o) / theta);
 
 end
 
