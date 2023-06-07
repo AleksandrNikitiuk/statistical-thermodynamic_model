@@ -65,7 +65,7 @@ if nargin < 6
 end
 
 viscosity = initial_viscosity ...
-  * exp( (lambda * eps_o.^2 - gamma * sigma_o) / theta);
+  * exp( (lambda * eps_o.^2 - gamma * sigma_o) / theta); % 
 
 end
 

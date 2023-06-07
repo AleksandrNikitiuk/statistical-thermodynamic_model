@@ -10,7 +10,7 @@ function [fit_xis,fit_model] = get_xi_approximation(xis,type_approximation)
 %     plot(eta_curve, xis, 'k');
 %     % plot(eta_curve, feval(fit_model,eta_curve))
 %     plot(eta_curve, fit_xis)
-%     xlabel('\eta')
+%     xlabel(['{\it' char(949) '}_o'])
 %     ylabel('\xi')
 % 
 %     fit_model

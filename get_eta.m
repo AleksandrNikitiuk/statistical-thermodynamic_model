@@ -3,11 +3,11 @@ function [eta_curve, eta_line] = get_eta(xis,sigma,T,lambda,gamma,R_fun,R_deriva
 %     Пример использования:
 %     T = .4; % .4 .26 .16
 %     sigma = .1; % .1 -.5 .5
-% 
+%     
 %     xis = -10:.1:20;
-% 
+%     
 %     [eta_curve, eta_line] = get_eta(xis,sigma,T);
-% 
+%     
 %     figure(1);hold on;
 %     plot(xis, eta_curve, 'k');
 %     plot(xis, eta_line, 'k');
