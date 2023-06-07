@@ -1,4 +1,4 @@
-function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lambda,gamma)
+function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lambda,gamma,fit_model)
 % Функция для расчета правой части дифференциального уравнения
 %     Пример использования:
 %     % time
@@ -103,7 +103,9 @@ function [rhs_expr] = get_rhs_expr(t,varibles,eps,deps_dt,E1,E2,Lo,nu,theta,lamb
 %     end
 
 
-
+if nargin < 12
+  [~,fit_model] = get_xi_approximation;
+end
 if nargin < 11
   lambda = 1.;
   gamma = 1.;
@@ -142,11 +144,11 @@ rhs_expr = zeros(size(varibles));
 if E2 == 0
   sigma = E1 * (eps * t - varibles(1));
   
-  [~,fit_model] = get_xi_approximation;
   dF_deps_o = ...
-    -2/3 * theta / gamma * feval(fit_model,varibles(1)) + lambda / gamma * varibles(1);
+    2/3 * theta / gamma * feval(fit_model,varibles(1)) - lambda / gamma * varibles(1);
 
-  rhs_expr(1) = 1/get_viscosity(1/Lo,varibles(1),sigma,theta,lambda,gamma) * ( sigma + dF_deps_o ); % 
+  viscosity = get_viscosity(1/Lo,varibles(1),sigma,theta,lambda,gamma);
+  rhs_expr(1) = 1/viscosity * ( sigma - dF_deps_o ); % 1/get_viscosity(1/Lo,varibles(1),sigma,theta,lambda,gamma)
 else
   rhs_expr(1) = E2 * deps_dt - E2/nu * varibles(1);
 end
