@@ -11,10 +11,14 @@ function [sigma] = get_sigma_with_relaxation_young_modulus(relaxation_young_modu
 %     F = Fs(:,1);
 %     F_loading = F(time <= 1);
 %     
-%     [relaxation_young_modulus] = get_relaxation_young_modulus([0; F_loading],[],[0; time_loading],3/2);
+%     [relaxation_young_modulus] = get_relaxation_young_modulus(F_loading,indentation,time_loading,3/2);
 %     
-%     [sigma] = get_sigma_with_relaxation_young_modulus(relaxation_young_modulus,[0;indentation],[0;time_loading]);
-%     plot(time_loading,sigma)
+%     [sigma] = get_sigma_with_relaxation_young_modulus(relaxation_young_modulus,indentation,time_loading);
+%     
+%     yyaxis left;
+%     plot(time_loading,F_loading);
+%     yyaxis right;
+%     plot(time_loading,sigma);
 
 
 
@@ -39,8 +43,8 @@ end
 % Расчет напряжений на основе метода трапеций при const шаге по времени
 time_step = time(2) - time(1);
 
-deformation_increments = diff(deformation);
-deformation_velocity = deformation_increments ./ time_step;
+deformation_increments = gradient(deformation);
+deformation_velocity = medfilt1(deformation_increments ./ time_step,5);
 
 sigma = flip(relaxation_young_modulus) .* deformation_velocity;
 sigma = 2/3 * (time(end) - time(1)) / (2 * n) * sigma;
