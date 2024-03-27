@@ -1,8 +1,9 @@
 function [...
   wavelet_transform_coefficients_0_order,...
-  wavelet_transform_coefficients_2_order]...
+  wavelet_transform_coefficients_1_order,...
+  wavelet_transform_coefficients_2_order,scales]...
   = get_wavelet_transform_coefficients(...
-  force,z_displacement,window_size,n_scales,max_scale,min_scale)
+  force,z_displacement,scale_size,n_scales,max_scale,min_scale)
 % Функция для расчета коэффициентов вейвлет-преобразования силовой кривой.
 %     Пример использования:
 %     path = 'D:\YandexDisk\Научная работа\Рабочий каталог\АСМ\data\2023-04-28\';
@@ -45,49 +46,64 @@ if nargin < 4 || isempty(n_scales)
   n_scales = 2^8;
 end
 
-if nargin < 3 || isempty(window_size)
-  window_size = 10;
+if nargin < 3 || isempty(scale_size)
+  scale_size = 10;
 end
 
 if nargin < 2 || isempty(z_displacement)
-  z_displacement = 1:n;
+  z_displacement = (1:n)';
 end
 
 % Инициализация переменных
-scale = zeros(1,n_scales);
-wavelet_transform_coefficients_0_order = zeros(2*n,n_scales);
-wavelet_transform_coefficients_2_order = zeros(2*n,n_scales);
+scales = zeros(1,n_scales);
+wavelet_transform_coefficients_0_order = zeros(3*n,n_scales);
+wavelet_transform_coefficients_1_order = zeros(3*n,n_scales);
+wavelet_transform_coefficients_2_order = zeros(3*n,n_scales);
 
 half_length = uint64(length(z_displacement) / 2);
 z_displacement_medium = z_displacement(half_length);
-z_displacemnt_square = ((z_displacement - z_displacement_medium) ...
+z_displacement_square = ((z_displacement - z_displacement_medium) ...
   .* (z_displacement - z_displacement_medium));
 
-force_with_flip_values = [flip(force); force]; % circshift(force,half_length)
+force_with_flip_values = [flip(force); force; flip(force)]; %  circshift(force,half_length + 1)
+% force_with_flip_values = [linspace(force(1),0,length(force))'; force; linspace(force(end),0,length(force))']; %  circshift(force,half_length + 1)
 force_ft = fft(force_with_flip_values); %  (half_length+1:3*half_length)
 
 % Расчет коэффициентов вейвлет-преобразования силовой кривой
 for n_scale = 1:n_scales
   
-  scale(n_scale) = exp(log( (max_scale) / (min_scale)) * (n_scale - 1) / n_scales );
-  
-  scaled_z_displacement_squre = z_displacemnt_square ...
-   / (scale(n_scale)^2 * window_size^2);
+  scales(n_scale) = exp(log( (max_scale) / (min_scale)) * (n_scale - 1) / n_scales );
+
+  scaled_z_displacement = (z_displacement - z_displacement_medium) / (scales(n_scale) * scale_size);
+  scaled_z_displacement_squre = z_displacement_square ...
+   / (scales(n_scale)^2 * scale_size^2);
 
   exp_term = exp(-scaled_z_displacement_squre ./ 2);
-  exp_term_derivative_coefficients = (scaled_z_displacement_squre - 1) / (scale(n_scale)^2 * window_size^2);
+  exp_term_first_derivative_coefficients = -scaled_z_displacement / (scales(n_scale) * scale_size);
+  exp_term_second_derivative_coefficients = (scaled_z_displacement_squre - 1) / (scales(n_scale)^2 * scale_size^2);
 
-  gaussian_function_0_order = exp_term / sum(exp_term); % 
-  gaussian_function_2_order = gaussian_function_0_order .* exp_term_derivative_coefficients;
+  gaussian_function_0_order = exp_term / sum(exp_term); %
+  gaussian_function_1_order = gaussian_function_0_order .* exp_term_first_derivative_coefficients;
+  gaussian_function_2_order = gaussian_function_0_order .* exp_term_second_derivative_coefficients;
 
-  gaussian_function_0_order_ft = fft([zeros(half_length,1); gaussian_function_0_order; zeros(half_length,1)]);
-  gaussian_function_2_order_ft = fft([zeros(half_length,1); gaussian_function_2_order; zeros(half_length,1)]);
+  gaussian_function_0_order_ft = fft([zeros(2*half_length,1); gaussian_function_0_order; zeros(2*half_length,1)]);
+  gaussian_function_1_order_ft = fft([zeros(2*half_length,1); gaussian_function_1_order; zeros(2*half_length,1)]);
+  gaussian_function_2_order_ft = fft([zeros(2*half_length,1); gaussian_function_2_order; zeros(2*half_length,1)]);
   
   wavelet_transform_coefficients_0_order(:,n_scale) = ifft(gaussian_function_0_order_ft .* force_ft);
+  wavelet_transform_coefficients_1_order(:,n_scale) = ifft(gaussian_function_1_order_ft .* force_ft);
   wavelet_transform_coefficients_2_order(:,n_scale) = ifft(gaussian_function_2_order_ft .* force_ft);
+
+%   [~,f,as] = execute_fourier_analysis(gaussian_function_2_order,1);
+%   [~,i] = max(as);
+%   frequencies(n_scale) = f(i) / (scales(n_scale) * scale_size);
 end
 
+wavelet_transform_coefficients_0_order = circshift(wavelet_transform_coefficients_0_order,n/2+1,1);
 wavelet_transform_coefficients_0_order = wavelet_transform_coefficients_0_order(1:n,:);
+wavelet_transform_coefficients_1_order = circshift(wavelet_transform_coefficients_1_order,n/2+1,1);
+wavelet_transform_coefficients_1_order = wavelet_transform_coefficients_1_order(1:n,:);
+wavelet_transform_coefficients_2_order = circshift(wavelet_transform_coefficients_2_order,n/2+1,1);
 wavelet_transform_coefficients_2_order = wavelet_transform_coefficients_2_order(1:n,:);
 
 end

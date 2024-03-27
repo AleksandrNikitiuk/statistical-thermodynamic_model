@@ -43,7 +43,7 @@ end
 % Расчет напряжений на основе метода трапеций при const шаге по времени
 time_step = time(2) - time(1);
 
-deformation_increments = gradient(deformation);
+deformation_increments = gradient(deformation); % .^2
 deformation_velocity = medfilt1(deformation_increments ./ time_step,5);
 
 sigma = flip(relaxation_young_modulus) .* deformation_velocity;
