@@ -50,7 +50,7 @@ xlabel(['{\it' char(949) '}_{\ito}' ]);ylabel('{\it\xi_o}')
 
 %% Свободная энергия ориентационная часть
 orientation_deformation = -.3:.01:.8;
-sigmas = [-.6 -.1 .3];
+sigmas = [.1 .2 .3]; % -.7:.01:.4
 chi_orientation = .1;
 
 effective_field_integral_orientation_case = ...
@@ -73,7 +73,7 @@ for sigma = sigmas
   xlabel(['{\it' char(949) '}_{\ito}' ]);ylabel('\Psi_{\ito} - <\Psi_{\ito}>')
 end
 axis tight;
-% colororder('k'); ax = gca; ax.LineStyleOrder = ["-"; "--"; ":"];
+colororder('k'); ax = gca; ax.LineStyleOrder = ["--";"-";  ":"];
 
 %% Свободная энергия сдвиговая часть
 shear_deformation = 0:.01:25;
@@ -127,7 +127,7 @@ ylabel(['{\it' char(949) '_s}']);
 %%
 
 % Time
-n_time_steps = 1e4;
+n_time_steps = 8e4;
 time_step = 1e-4;                                                           % с
 
 % Varibles initialization
@@ -141,6 +141,8 @@ strain = zeros(size(sigma_shear));
 orientation_strain = zeros(size(sigma_shear));
 chi_shear = zeros(size(sigma_shear));
 shear_strain = zeros(size(sigma_shear));
+orientation_strain_rate = zeros(size(sigma_shear));
+shear_strain_rate = zeros(size(sigma_shear));
 elastic_strain = zeros(size(sigma_shear));
 sigma_elastic_increment = zeros(size(sigma_shear));
 sigma_reversible_increment = zeros(size(sigma_shear));
@@ -149,8 +151,8 @@ orientation_relaxation_time = zeros(size(sigma_shear));
 shear_relaxation_time = zeros(size(sigma_shear));
 
 % Initial conditions
-sigma_shear(:) = 6e0;                                                       % Па; 1 и 6 Па - демонстрация ориентационной и микросдвиговой деформации соответственно
-chi_shear(1) = 1.07;                                                        % 1 [1.25 1.16 1.07]
+sigma_shear(:) = 1.0e0;                                                       % Па; 1 и 6 Па - демонстрация ориентационной и микросдвиговой деформации соответственно
+chi_shear(1) = 1.3;                                                        % 1 [1.3 1.1 1.01]
 
 % Model parameters for orientation case
 orientation_deformation = -.3:.01:.8;                                       % 1
@@ -158,24 +160,24 @@ effective_field_integral_orientation_case = ...
     get_effective_field_integral_orientation_case(orientation_deformation);
 F_orientation = zeros(n_time_steps,numel(orientation_deformation));
 k_boltzmann = 1.380649e-23;                                                 % Дж/К
-temperature = 300;                                                          % К
+temperature = 677.5;                                                          % К
 theta = k_boltzmann * temperature / 2;
 lambda_orient = 2e1;                                                        % Па
 gamma_orient = 1e-21;                                                       % м^3
 chi_orientation = theta / (lambda_orient * gamma_orient);
-initial_orientation_relaxation_time = 1.2886e-2;                           % c
+initial_orientation_relaxation_time = .5086e-2;                            % c
 
 % Model parameters for shear case
 shear_deformation = 0:.01:25;                                               % 1
 effective_field_derivative_shear_case = ...
     get_effective_field_integral_shear_case(shear_deformation);
 F_shear = zeros(n_time_steps,numel(shear_deformation));
-initial_shear_relaxation_time = 1.2886e-0;                                  % c
+initial_shear_relaxation_time = 1.2886e-1;                                  % c
 alpha = 1e21;                                                               % Н / м^5
 bundles_concentration = 1e19;                                               % м^-3
 
 % Other model parameters
-chi_shear_kin_coef = 5e7;                                                   % ?
+chi_shear_kin_coef = 1e-3;                                                   % ?
 vortex = zeros(3); vortex(1,2) = 1; vortex(2,1) = 1;
 I = eye(3);
 [C_I,C_II] = get_fourth_rank_isotropic_tensors;
@@ -186,6 +188,15 @@ poissons_ratio = .49;
 D1 = 0; % 2 * actin_shear_modulus * poissons_ratio / (1 - 2 * poissons_ratio)
 C1_reversible = cell_shear_modulus / 2;                                     % Па
 D1_reversible = 0; % 2 * cell_shear_modulus * poissons_ratio / (1 - 2 * poissons_ratio)
+
+% Initial kinematics
+F = I;
+B = zeros(n_time_steps,3,3);
+B(1,:,:) = tensorprod(F,F',2,1);
+B(:,3,3) = 1;
+B_elastic = zeros(n_time_steps,3,3);
+B_elastic(:,3,3) = 1;
+B_elastic(1,:,:) = tensorprod(F,F',2,1);
 
 % Approximations of effective fileds
 effective_field_shear_case = (-10:.11:30)';
@@ -256,69 +267,6 @@ for t = 1:(n_time_steps - 1)
 
   dF_chi_shear = (2*chi_shear(t).^2).^-1 .* shear_strain(t).^2; % heaviside(orientation_strain(t) - .5) * 
   % end get derivatives
-  
-  % get response functions
-  F_elastic = I;
-  F_elastic(2,1) = F_elastic(2,1) + t * time_step * (strain(t) - orientation_strain(t) - shear_strain(t));
-  B_elastic = tensorprod(F_elastic,F_elastic',2,1);
-  elastic_small_deformation = (strain(t) - orientation_strain(t) - shear_strain(t)) / 2 ...
-    * ([1 0 0]' .* [0 1 0] + [0 1 0]' .* [1 0 0]);
-  elastic_small_rotation = (strain(t) - orientation_strain(t) - shear_strain(t)) / 2 ...
-    * ([1 0 0]' .* [0 1 0] - [0 1 0]' .* [1 0 0]);
-%   L6_elastic = ...
-%     2 * C1 * (det(F_elastic)^-1 - trace(strain(t) - orientation_strain(t) - shear_strain(t))) ...
-%     * (tensorprod(B_elastic,C_II,2,1) + tensorprod(C_II,B_elastic,2,1)) ...
-%     - tensorprod( ...
-%     2*C1 ...
-%     * (B_elastic ...
-%     - tensorprod(B_elastic,elastic_small_rotation,2,1) ...
-%     + tensorprod(elastic_small_rotation,B_elastic,2,1) - I) ...
-%     + 2*D1 * I  ...
-%     ,C_I,2,1);
-  L6_elastic = 4 * (...
-    2 * (C1 * det(F_elastic)^-1 - D1 * (det(F_elastic) - 1)) * C_II ...
-    + tensorprod( ...
-            C1 * (det(F_elastic)^-1 * B_elastic ...
-            - det(F_elastic)^-1 * I ....
-            - B_elastic ...
-            - tensorprod(elastic_small_deformation + elastic_small_rotation,B_elastic,2,1) ...
-            - tensorprod(B_elastic,elastic_small_deformation - elastic_small_rotation,2,1) ...
-            + I) ...
-            + D1 * det(F_elastic) * I...
-    ,C_I, 2, 1) ...
-    );
-  
-  F = I;
-  F(2,1) = F(2,1) + t * time_step * strain(t);
-  B = tensorprod(F,F',2,1);
-  small_deformation = strain(t) / 2 ...
-    * ([1 0 0]' .* [0 1 0] + [0 1 0]' .* [1 0 0]);
-  small_rotation = strain(t) / 2 ...
-    * ([1 0 0]' .* [0 1 0] - [0 1 0]' .* [1 0 0]);
-%   L6 = ...
-%     2 * C1_reversible * (det(F)^-1 - trace(strain(t))) ...
-%     * (tensorprod(B,C_II,2,1) + tensorprod(C_II,B,2,1)) ...
-%     - tensorprod( ...
-%     2*C1_reversible ...
-%     * (B ...
-%     - tensorprod(B,small_rotation,2,1) ...
-%     + tensorprod(small_rotation,B,2,1) - I) ...
-%     + 2*D1_reversible * I  ...
-%     ,C_I,2,1);
-  % end get response functions
-  L6 = 4 * (...
-    2 * (C1 * det(F)^-1 - D1 * (det(F) -1)) * C_II ...
-    + tensorprod( ...
-            C1 * (det(F)^-1 * B ...
-            - det(F)^-1 * I ....
-            - B ...
-            - tensorprod(small_deformation + small_rotation,B,2,1) ...
-            - tensorprod(B,small_deformation - small_rotation,2,1) ...
-            + I) ...
-            + D1 * det(F) * I...
-     ,C_I,2,1) ...
-     );
-
 
   orientation_strain_increment(t) = ...
     orient_kin_coef * (sigma_elastic(t) - dF_orientation_strain) * time_step;
@@ -326,93 +274,124 @@ for t = 1:(n_time_steps - 1)
   shear_strain_increment(t) = ...
     shear_kin_coef * (sigma_elastic(t) - dF_shear_deformation) * time_step;
 
-  strain_rate(t) = ...
-    ( orientation_strain_increment(t) + shear_strain_increment(t) ) ...
-    * (L6_elastic(1,2,1,2) + L6_elastic(1,2,2,1) ...
-    + L6_elastic(2,1,1,2) + L6_elastic(2,1,2,1)) ...
-    / ...
-    (...
-    time_step * ( L6(1,2,1,2) + L6(1,2,2,1) ...
-    + L6(2,1,1,2) + L6(2,1,2,1) ...
-    + L6_elastic(1,2,1,2) + L6_elastic(1,2,2,1) ...
-    + L6_elastic(2,1,1,2) + L6_elastic(2,1,2,1) )...
-    );
-  
-  sigma_reversible(t + 1) = ...
-    sigma_reversible_increment(t) + strain_rate(t) * time_step / 2 ...
-    * (L6(1,2,1,2) + L6(1,2,2,1) + L6(2,1,1,2) + L6(2,1,2,1));
+  orientation_strain_rate(t) = orientation_strain_increment(t) / time_step;
+  shear_strain_rate(t) = shear_strain_increment(t) / time_step;
 
-  sigma_elastic(t + 1) = sigma_shear(t + 1) - sigma_reversible(t + 1);
+  strain_rate(t) = (...
+    B_elastic(t,1,2) / time_step + B(t,1,2) / time_step ...
+    - sigma_shear(t + 1) / (2 * C1 * time_step) ...
+    + 2 * (orientation_strain_rate(t) + shear_strain_rate(t)) ...
+    * (B_elastic(t,2,2) + B_elastic(t,1,2)) ...
+    ) / ...
+    (2 * (B(t,1,2) + B(t,2,2) + B_elastic(t,1,2) + B_elastic(t,2,2)));
+
+  vortex = strain_rate(t) / 2 ...
+    * ([1 0 0]' .* [0 1 0] - [0 1 0]' .* [1 0 0]);
+  B(t + 1,1,1) = B(t,1,1) + time_step * (...
+    -vortex(1,2) * ( B(t,2,1) + B(t,1,2) ) - strain_rate(t) * ( B(t,1,2) + B(t,2,1) ));
+  B(t + 1,2,2) = B(t,2,2) + time_step * (...
+    -vortex(1,2) * ( B(t,2,1) + B(t,1,2) ) - strain_rate(t) * ( B(t,1,2) + B(t,2,1) ));
+  B(t + 1,1,2) = B(t,1,2) + time_step * (...
+    vortex(1,2) * ( B(t,1,1) - B(t,2,2) ) - strain_rate(t) * ( B(t,1,1) + B(t,2,2) ));
+  B(t + 1,2,1) = B(t,2,1) + time_step * (...
+    vortex(2,1) * ( B(t,2,2) - B(t,1,1) ) - strain_rate(t) * ( B(t,2,2) + B(t,1,1) ));
+
+  vortex_elastic = (strain_rate(t) - orientation_strain_rate(t) - shear_strain_rate(t)) / 2 ...
+    * ([1 0 0]' .* [0 1 0] - [0 1 0]' .* [1 0 0]);
+  B_elastic(t + 1,1,1) = B_elastic(t,1,1) + time_step * (...
+    -vortex_elastic(1,2) * ( B_elastic(t,2,1) + B_elastic(t,1,2) ) - (strain_rate(t) - orientation_strain_rate(t) - shear_strain_rate(t)) * ( B_elastic(t,1,2) + B_elastic(t,2,1) ));
+  B_elastic(t + 1,2,2) = B_elastic(t,2,2) + time_step * (...
+    -vortex_elastic(2,1) * ( B_elastic(t,1,2) + B_elastic(t,2,1) ) - (strain_rate(t) - orientation_strain_rate(t) - shear_strain_rate(t)) * ( B_elastic(t,2,1) + B_elastic(t,1,2) ));
+  B_elastic(t + 1,1,2) = B_elastic(t,1,2) + time_step * (...
+    vortex_elastic(1,2) * ( B_elastic(t,1,1) - B_elastic(t,2,2) ) - (strain_rate(t) - orientation_strain_rate(t) - shear_strain_rate(t)) * ( B_elastic(t,1,1) + B_elastic(t,2,2) ));
+  B_elastic(t + 1,2,1) = B_elastic(t,2,1) + time_step * (...
+    vortex_elastic(2,1) * ( B_elastic(t,2,2) - B_elastic(t,1,1) ) - (strain_rate(t) - orientation_strain_rate(t) - shear_strain_rate(t)) * ( B_elastic(t,2,2) + B_elastic(t,1,1) ));
   
-  strain(t + 1) = strain(t) + strain_rate(t) * time_step;
+  sigma_elastic(t + 1) = 2 * C1 * B_elastic(t + 1,1,2);
+  sigma_reversible(t + 1) = 2 * C1 * B(t + 1,1,2);
+
   orientation_strain(t + 1) = orientation_strain(t) + orientation_strain_increment(t);
   chi_shear(t + 1) = chi_shear(t) + chi_shear_increment(t);
   shear_strain(t + 1) = shear_strain(t) + shear_strain_increment(t);
-  elastic_strain(t + 1) = elastic_strain(t) + ( ...
-    strain_rate(t) * time_step...
-    - orientation_strain_increment(t) ...
-    - shear_strain_increment(t) ...
-    );
 
 end
+
+eps = 1e-1;
+time = time_step * (1:n_time_steps);
+% time = time(abs(diff(strain_rate)) < eps);
+% orientation_strain_rate = orientation_strain_rate(abs(diff(strain_rate)) < eps);
+% shear_strain_rate = shear_strain_rate(abs(diff(strain_rate)) < eps);
+% chi_shear = chi_shear(abs(diff(strain_rate)) < eps);
+% strain_rate = strain_rate(abs(diff(strain_rate)) < eps);
+strain = cumtrapz(time,strain_rate);
+
+mean_square_error = ...
+  mean( sqrt( ...
+  abs(sigma_elastic(2:end) + sigma_reversible(2:end) - sigma_shear(2:end)).^2 ...
+  ./ abs(sigma_shear(2:end)).^2 ) );
+
 
 line_width = 2;
 
 figure(7);hold on;
 plot(orientation_deformation,F_orientation(1,:),'b','LineWidth',line_width)
 plot(orientation_deformation(31),F_orientation(1,31),'bo','MarkerSize',7,'LineWidth',line_width)
-plot(orientation_deformation,F_orientation((end-1),:),'r','LineWidth',line_width)
-plot(orientation_deformation(end),F_orientation((end-1),end),'ro','MarkerSize',7,'LineWidth',line_width)
+plot(orientation_deformation,F_orientation(100,:),'r','LineWidth',line_width)
+plot(orientation_deformation(52),F_orientation(100,52),'ro','MarkerSize',7,'LineWidth',line_width)
 xlabel(['{\it' char(949) '_o}']);
-ylabel('\Psi_{\ito} - <\Psi_{\ito}>')
-
+ylabel('\Psi_{\ito} - <\Psi_{\ito}>');
+legend({ ...
+  '\Psi_{\ito}(0.003,{\itε_o}({\itt}))', ...
+  '\Psi_{\ito}(0.003,{\itε_o}(0.003))', ...
+  '\Psi_{\ito}(0.005,{\itε_o}({\itt}))', ...
+  '\Psi_{\ito}(0.005,{\itε_o}(0.005))'},'Location','best');
+ 
 figure(6);hold on;
-plot(shear_deformation,F_shear(2,:),'b','LineWidth',line_width)
-plot(shear_deformation(1),F_shear(2,1),'bo','MarkerSize',7,'LineWidth',line_width)
-plot(shear_deformation,F_shear(floor(3*end/4),:),'r','LineWidth',line_width)
-plot(shear_deformation(50),F_shear(floor(3*end/4),50),'ro','MarkerSize',7,'LineWidth',line_width)
-plot(shear_deformation,F_shear(end-1000,:),'m','LineWidth',line_width)
-plot(shear_deformation(100),F_shear(end-1000,100),'mo','MarkerSize',7,'LineWidth',line_width)
+plot(shear_deformation,F_shear(1100,:),'b','LineWidth',line_width)
+plot(shear_deformation(1),F_shear(1100,1),'bo','MarkerSize',7,'LineWidth',line_width)
+plot(shear_deformation,F_shear(1200,:),'r','LineWidth',line_width)
+plot(shear_deformation(50),F_shear(1200,50),'ro','MarkerSize',7,'LineWidth',line_width)
+plot(shear_deformation,F_shear(1250,:),'m','LineWidth',line_width)
+plot(shear_deformation(100),F_shear(1250,100),'mo','MarkerSize',7,'LineWidth',line_width)
 xlabel(['{\it' char(949) '_s}']);
 ylabel('\Psi_{\its} - <\Psi_{\its}>')
+legend({ ...
+  '\Psi_{\its}(0.11,{\itε_s}({\itt}))', ...
+  '\Psi_{\its}(0.11,{\itε_s}(0.11))', ...
+  '\Psi_{\its}(0.12,{\itε_s}({\itt}))', ...
+  '\Psi_{\its}(0.12,{\itε_s}(0.12))', ...
+  '\Psi_{\its}(0.125,{\itε_s}({\itt}))', ...
+  '\Psi_{\its}(0.125,{\itε_s}(0.125))'}, ...
+  'Location','best')
 
 figure(5);hold on;
 colororder({'b','r'})
 yyaxis left;
-plot((2:(n_time_steps-1))*time_step,orientation_relaxation_time(2:(end-1)))
+plot(time(2:end-1),orientation_relaxation_time(2:(end-1)),'LineWidth',line_width)
 ylabel('{\it\tau_o}, s')
 yyaxis right;
-plot((2:(n_time_steps-1))*time_step,shear_relaxation_time(2:(end-1)))
+plot(time(2:end-1),shear_relaxation_time(2:(end-1)),'LineWidth',line_width)
 xlabel('{\itt}, s');
 ylabel('{\it\tau_s}, s')
 
 figure(4);hold on;
-plot((1:n_time_steps)*time_step,strain_rate,'k','LineWidth',line_width)
-plot((1:n_time_steps)*time_step,orientation_strain_increment/time_step,'b','LineWidth',line_width)
-plot((1:n_time_steps)*time_step,shear_strain_increment/time_step,'r','LineWidth',line_width)
-plot((1:(n_time_steps - 1))*time_step,diff(elastic_strain)/time_step,'g','LineWidth',line_width)
-plot((1:(n_time_steps - 1))*time_step,...
-  diff(elastic_strain)/time_step + (orientation_strain_increment(1:end-1) + shear_strain_increment(1:end-1)...
-  )/time_step,'--m','LineWidth',line_width)
+plot(time(2:end-1),strain_rate(2:end-1),'k','LineWidth',line_width + 1)
+plot(time(2:end-1),orientation_strain_rate(2:end-1),'b','LineWidth',line_width)
+plot(time(2:end-1),shear_strain_rate(2:end-1),'r','LineWidth',line_width)
+plot(time(2:end-1),strain_rate(2:end-1) - orientation_strain_rate(2:end-1) - shear_strain_rate(2:end-1),'g','LineWidth',line_width)
+plot(time(2:end-1),strain_rate(2:end-1) - orientation_strain_rate(2:end-1) - shear_strain_rate(2:end-1)  + orientation_strain_rate(2:end-1) + shear_strain_rate(2:end-1),'m--','LineWidth',line_width)
 xlabel('{\itt}, s');
-ylabel('$\dot{\varepsilon}$','Interpreter','latex')
-legend(...
-  {'$D$',...
-  '$\dot{\varepsilon_o}$',...
-  '$\dot{\varepsilon_s}$',...
-  '$\dot{\varepsilon_e}$',...
-  '$\dot{\varepsilon_e} + \dot{\varepsilon_o} + \dot{\varepsilon_s}$'},'Interpreter','latex')% 
+ylabel('{\itD}, s^{-1}');
+legend({'{\itD}','{\itD_o}','{\itD_s}','{\itD_e}','{\itD_e} + {\itD_o} + {\itD_s}'},'Location','best'); % 
+
 figure(3);hold on;
-yyaxis  left;
-plot((2:n_time_steps)*time_step,sigma_shear(2:end),'k','LineWidth',line_width)
-yyaxis right;
+plot((2:n_time_steps)*time_step,sigma_shear(2:end),'k','LineWidth',line_width + 1)
 plot((2:n_time_steps)*time_step,sigma_reversible(2:end),'b','LineWidth',line_width)
-yyaxis left;
 plot((2:n_time_steps)*time_step,sigma_elastic(2:end),'r','LineWidth',line_width)
-plot((2:n_time_steps)*time_step,sigma_reversible(2:end) + sigma_elastic(2:end),'m','LineWidth',line_width)
-% ylim([-.1 (sigma_shear(end) + .1)])
+plot((2:n_time_steps)*time_step,sigma_reversible(2:end) + sigma_elastic(2:end),'m--','LineWidth',line_width)
 xlabel('{\itt}, s');
 ylabel('{\it\sigma}, Pa')
+legend({'{\it\sigma_s}','{\it\sigma_r}','{\it\sigma_e}','{\it\sigma_r} + {\it\sigma_e}'},'Location','best');
 
 figure(2);hold on;
 plot((1:n_time_steps)*time_step,chi_shear)
@@ -420,11 +399,12 @@ xlabel('{\itt}, s');
 ylabel('{\it\chi_s}');
 
 figure(1);hold on;
-plot((1:n_time_steps)*time_step,strain)
-% plot((1:n_time_steps)*time_step,orientation_strain)
+plot(time,strain + abs(min(strain)),'k','LineWidth',line_width)
+plot(time,orientation_strain,'b','LineWidth',line_width)
+plot(time,shear_strain,'r','LineWidth',line_width)
 xlabel('{\itt}, s');
 ylabel(['{\it' char(949) '}'])
-% ylim([.1755 .1757])
+legend({['{\it' char(949) '}'],['{\it' char(949) '_o}'],['{\it' char(949) '_s}']},'Location','best');
 
 %% Кинетика актиновых филаментов, обусловленная ориентированием их сегментов
 sigma = 5;
@@ -450,7 +430,7 @@ coefficients_orientation_case = [-6.737e+04 6454; -1.31e+04 -1.429e+05; 4.14e+05
   get_orientation_deformation_increment(t,orientation_deformation,fit_model_orientation_case,sigma,chi_orientation,G,tau),...
   time,initial_conditions);
 
-deformation = -.99:.01:.99;
+deformation = -.49:.01:.99;
 effective_field_integral_orientation_case = ...
   get_effective_field_integral_orientation_case(deformation);
 
@@ -466,38 +446,38 @@ for t = time
 
 end
 
-% check = 0;
-% figure('Color','w'); % ,'units','normalized','outerposition',[0 0 1 1]
-% for k = 1:numel(time)  
-%   plot(deformation, F_orientation(:,k),'k-');
-%   [~,i] = min(abs(deformation - orientation_deformation(k)));
-%   hold on;
-%   plot(deformation(i),F_orientation(i,k),'ko')
-%   hold off;
-%   xlabel(['{\it' char(949) '_o}']);
-%   ylabel('{\itF_o}');
-%   axis tight;
-% %   ylim([-10^-0 * A 10^-0 *A]);
-% %   title(['t = ' num2str(T(k)) ' t.u.']);
-%   f = getframe(gcf);
-%   if (check == 0)
-%     [im,map] = rgb2ind(f.cdata,2^10,'nodither');
-%     check = 1;
-%   else
-%     im(:,:,1,k) = rgb2ind(f.cdata,map,'nodither');
-%   end  
-% end
+check = 0;
+figure('Color','w'); % ,'units','normalized','outerposition',[0 0 1 1]
+for k = 1:numel(time)  
+  plot(deformation, F_orientation(:,k),'k-');
+  [~,i] = min(abs(deformation - orientation_deformation(k)));
+  hold on;
+  plot(deformation(i),F_orientation(i,k),'ko')
+  hold off;
+  xlabel(['{\it' char(949) '_o}']);
+  ylabel('{\itF_o}');
+  axis tight;
+%   ylim([-10^-0 * A 10^-0 *A]);
+%   title(['t = ' num2str(T(k)) ' t.u.']);
+  f = getframe(gcf);
+  if (check == 0)
+    [im,map] = rgb2ind(f.cdata,2^10,'nodither');
+    check = 1;
+  else
+    im(:,:,1,k) = rgb2ind(f.cdata,map,'nodither');
+  end  
+end
 % 
 % % gif_file_name = 'breathers_T_nonzero_1_dynamics.gif'; % on-site_breather inter-site_breather breathers
 % % imwrite(im,map,gif_file_name,'DelayTime',0,'LoopCount',inf);w(2);
 
-figure(3);hold on;
-plot(sigma*time,orientation_deformation);
-xlabel('\sigma');ylabel(['{\it' char(949) '}']);
-
-figure(4);hold on
-plot(time,F_orientation_barriers);
-xlabel('{\itt}');ylabel('{\itF_{barrier}}');
+% figure(3);hold on;
+% plot(sigma*time,orientation_deformation);
+% xlabel('\sigma');ylabel(['{\it' char(949) '}']);
+% 
+% figure(4);hold on
+% plot(time,F_orientation_barriers);
+% xlabel('{\itt}');ylabel('{\itF_{barrier}}');
 
 %% Кинетика сегментов и пачек актиновых филаментов
 sigma = 1e0;                      % Па
@@ -596,63 +576,63 @@ for t = time
   sigma_shear(:,t == time) = (feval(fit_model_shear_case,shear_deformation') + shear_deformation' - deformation(t == time,3).^-1 * shear_deformation');
 end
 
-% check = 0;
-% figure('Color','w'); % ,'units','normalized','outerposition',[0 0 1 1]
-% pos = get(gcf,'Position');
-% pos(1:2) = pos(1:2) - 1.5*floor(pos(1:2)/2);pos(3:4) = pos(3:4) * 2;
-% set(gcf,'Position',pos);
-% for k = 1:numel(time)  
-% 
-%   subplot(2,2,1);
-%   plot(orientation_deformation, F_orientation(:,k),'k-');
-%   [~,i] = min(abs(orientation_deformation - deformation(k,1)));
-%   hold on;
-%   plot(orientation_deformation(i),F_orientation(i,k),'ko')
-%   hold off;
-%   xlabel(['{\it' char(949) '_o}''']);
-%   ylabel('{\itF_o}''');
-%   axis tight;
-% 
-%   subplot(2,2,3);
-%   plot(sigma_orientation,orientation_deformation,'k');
-%   sigma_orientation_current = (feval(fit_model_orientation_case,orientation_deformation(i)) - chi_orientation^-1 * orientation_deformation(i));
-%   hold on;
-%   plot(sigma_orientation_current,orientation_deformation(i),'ko');
-%   hold off;
-%   ylabel(['{\it' char(949) '_o}''']);
-%   xlabel('{\it\sigma}''');
-%   axis tight;
-% 
-%   subplot(2,2,2);
-%   plot(shear_deformation, F_shear(:,k),'k-');
-%   [~,i] = min(abs(shear_deformation - sqrt(alpha/theta)/bundles_concetration * deformation(k,2)));
-%   hold on;
-%   plot(shear_deformation(i),F_shear(i,k),'ko')
-%   hold off;
-%   xlabel(['{\it' char(949) '_s}''']);
-%   ylabel('{\itF_s}''');
-%   axis tight;
-% 
-%   subplot(2,2,4);
-%   plot(sigma_shear(:,k),shear_deformation,'k');
-%   sigma_shear_current = (feval(fit_model_shear_case,shear_deformation(i)) + shear_deformation(i) - deformation(k,3).^-1 * shear_deformation(i));
-%   hold on;
-%   plot(sigma_shear_current,shear_deformation(i),'ko');
-%   hold off;
-%   ylabel(['{\it' char(949) '_s}''']);
-%   xlabel('{\it\sigma}''');
-%   axis tight;
-% 
-%   f = getframe(gcf);
-%   if (check == 0)
-%     [im,map] = rgb2ind(f.cdata,2^10,'nodither');
-%     check = 1;
-%   else
-%     im(:,:,1,k) = rgb2ind(f.cdata,map,'nodither');
-%   end  
-% end
-% % gif_file_name = 'breathers_T_nonzero_1_dynamics.gif'; % on-site_breather inter-site_breather breathers
-% % imwrite(im,map,gif_file_name,'DelayTime',0,'LoopCount',inf);w(2);
+check = 0;
+figure('Color','w'); % ,'units','normalized','outerposition',[0 0 1 1]
+pos = get(gcf,'Position');
+pos(1:2) = pos(1:2) - 1.5*floor(pos(1:2)/2);pos(3:4) = pos(3:4) * 2;
+set(gcf,'Position',pos);
+for k = 1:numel(time)  
+
+  subplot(2,2,1);
+  plot(orientation_deformation, F_orientation(:,k),'k-');
+  [~,i] = min(abs(orientation_deformation - deformation(k,1)));
+  hold on;
+  plot(orientation_deformation(i),F_orientation(i,k),'ko')
+  hold off;
+  xlabel(['{\it' char(949) '_o}''']);
+  ylabel('{\itF_o}''');
+  axis tight;
+
+  subplot(2,2,3);
+  plot(sigma_orientation,orientation_deformation,'k');
+  sigma_orientation_current = (feval(fit_model_orientation_case,orientation_deformation(i)) - chi_orientation^-1 * orientation_deformation(i));
+  hold on;
+  plot(sigma_orientation_current,orientation_deformation(i),'ko');
+  hold off;
+  ylabel(['{\it' char(949) '_o}''']);
+  xlabel('{\it\sigma}''');
+  axis tight;
+
+  subplot(2,2,2);
+  plot(shear_deformation, F_shear(:,k),'k-');
+  [~,i] = min(abs(shear_deformation - sqrt(alpha/theta)/bundles_concetration * deformation(k,2)));
+  hold on;
+  plot(shear_deformation(i),F_shear(i,k),'ko')
+  hold off;
+  xlabel(['{\it' char(949) '_s}''']);
+  ylabel('{\itF_s}''');
+  axis tight;
+
+  subplot(2,2,4);
+  plot(sigma_shear(:,k),shear_deformation,'k');
+  sigma_shear_current = (feval(fit_model_shear_case,shear_deformation(i)) + shear_deformation(i) - deformation(k,3).^-1 * shear_deformation(i));
+  hold on;
+  plot(sigma_shear_current,shear_deformation(i),'ko');
+  hold off;
+  ylabel(['{\it' char(949) '_s}''']);
+  xlabel('{\it\sigma}''');
+  axis tight;
+
+  f = getframe(gcf);
+  if (check == 0)
+    [im,map] = rgb2ind(f.cdata,2^10,'nodither');
+    check = 1;
+  else
+    im(:,:,1,k) = rgb2ind(f.cdata,map,'nodither');
+  end  
+end
+% gif_file_name = 'breathers_T_nonzero_1_dynamics.gif'; % on-site_breather inter-site_breather breathers
+% imwrite(im,map,gif_file_name,'DelayTime',0,'LoopCount',inf);w(2);
 
 % check = 0;
 % figure('Color','w'); % ,'units','normalized','outerposition',[0 0 1 1]

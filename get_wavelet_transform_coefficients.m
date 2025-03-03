@@ -65,7 +65,7 @@ z_displacement_medium = z_displacement(half_length);
 z_displacement_square = ((z_displacement - z_displacement_medium) ...
   .* (z_displacement - z_displacement_medium));
 
-force_with_flip_values = [flip(force); force; flip(force)]; %  circshift(force,half_length + 1)
+force_with_flip_values = [flip(force); force; -flip(force)+ 2*force(end)]; %  circshift(force,half_length + 1)
 % force_with_flip_values = [linspace(force(1),0,length(force))'; force; linspace(force(end),0,length(force))']; %  circshift(force,half_length + 1)
 force_ft = fft(force_with_flip_values); %  (half_length+1:3*half_length)
 
